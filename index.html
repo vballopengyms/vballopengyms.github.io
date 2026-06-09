@@ -4,23 +4,60 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>VBall Open Gyms - Parent Vetting Tracker</title>
-    <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      .autocomplete-container {
+        position: relative;
+        width: 100%;
+      }
+      .autocomplete-results {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        background: #ffffff;
+        border: 1px solid #d1d5db;
+        border-top: none;
+        border-radius: 0 0 6px 6px;
+        max-height: 220px;
+        overflow-y: auto;
+        z-index: 9999;
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+      }
+      .autocomplete-item {
+        padding: 10px 12px;
+        cursor: pointer;
+        font-size: 14px;
+        color: #1f2937;
+        border-bottom: 1px solid #f3f4f6;
+        text-align: left;
+      }
+      .autocomplete-item:hover {
+        background-color: #eff6ff;
+      }
+      .autocomplete-item strong {
+        color: #111827;
+        display: block;
+      }
+      .autocomplete-item span {
+        font-size: 12px;
+        color: #6b7280;
+      }
+    </style>
 </head>
 <body class="bg-gray-50 text-gray-900 font-sans min-h-screen pb-24">
 
-    <!-- Header -->
     <header class="bg-blue-600 text-white shadow-md py-6 px-4 mb-8">
         <div class="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
             <div>
                 <h1 class="text-2xl font-bold tracking-tight">🏐 VBall Open Gyms</h1>
                 <p class="text-blue-100 text-sm mt-1">Firsthand summer open gym scouting by parents, for parents.</p>
             </div>
-            <!-- Public Filters -->
             <div class="flex flex-wrap gap-2 w-full md:w-auto">
                 <select id="cityFilter" onchange="filterGyms()" class="bg-white text-gray-800 px-3 py-2 rounded-md shadow text-sm border-0 focus:ring-2 focus:ring-blue-300">
                     <option value="all">All Cities</option>
                     <option value="Orange">Orange</option>
+                    <option value="Santa Ana">Santa Ana</option>
                 </select>
                 <select id="ratingFilter" onchange="filterGyms()" class="bg-white text-gray-800 px-3 py-2 rounded-md shadow text-sm border-0 focus:ring-2 focus:ring-blue-300">
                     <option value="all">All Safety Ratings</option>
@@ -31,14 +68,11 @@
         </div>
     </header>
 
-    <!-- Main Public Dashboard -->
     <main class="max-w-6xl mx-auto px-4">
         <div id="gymsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <!-- Dynamic gym cards load here -->
-        </div>
+            </div>
     </main>
 
-    <!-- Collapsible Admin Panel Footer -->
     <section class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-xl z-50 transition-all duration-300 max-h-[85vh] overflow-y-auto" id="adminSection">
         <div class="bg-gray-800 text-white px-4 py-3 flex justify-between items-center cursor-pointer" onclick="toggleAdminPanel()">
             <div class="flex items-center gap-2">
@@ -48,24 +82,26 @@
             <button id="toggleBtn" class="text-gray-400 hover:text-white font-bold text-lg">▲ Expand</button>
         </div>
         
-        <!-- Hidden Admin Content Form -->
         <div id="adminFormContainer" class="p-6 max-w-4xl mx-auto hidden">
             <form id="gymForm" onsubmit="handleFormSubmit(event)" class="space-y-4">
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                        <label class="block text-xs font-bold uppercase text-gray-600 mb-1">Gym Name</label>
-                        <input type="text" id="gymName" required class="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-blue-500">
+                        <label class="block text-xs font-bold uppercase text-gray-600 mb-1">Gym Name (Type to Auto-Search)</label>
+                        <div class="autocomplete-container">
+                            <input type="text" id="gymName" required placeholder="e.g. Jerome Center, Orange Gym..." autocomplete="off" class="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-blue-500">
+                            <div id="autocompleteResults" class="autocomplete-results" style="display: none;"></div>
+                        </div>
                     </div>
                     <div>
                         <label class="block text-xs font-bold uppercase text-gray-600 mb-1">City</label>
-                        <input type="text" id="gymCity" required class="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-blue-500">
+                        <input type="text" id="gymCity" required placeholder="Auto-populates from search" class="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-blue-500">
                     </div>
                 </div>
                 
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
-                        <label class="block text-xs font-bold uppercase text-gray-600 mb-1">Address</label>
-                        <input type="text" id="gymAddress" required class="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-blue-500">
+                        <label class="block text-xs font-bold uppercase text-gray-600 mb-1">Street Address</label>
+                        <input type="text" id="gymAddress" required placeholder="Auto-populates from search" class="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-blue-500">
                     </div>
                     <div>
                         <label class="block text-xs font-bold uppercase text-gray-600 mb-1">Cost / Drop-in Fee</label>
@@ -114,9 +150,8 @@
         </div>
     </section>
 
-    <!-- App Engine Logic -->
     <script>
-        // Seed database array with an initial sample location structure
+        // Data Store Array
         let gyms = [
             {
                 id: 1,
@@ -206,7 +241,6 @@
         function simulateAIPolish() {
             const raw = document.getElementById('rawNotes').value;
             if(!raw) return alert('Type something in the notes first!');
-            // Simple string operations simulating clean formatting framework rules
             let cleaned = raw.replace(/(?:\r\n|\r|\n)/g, ' ').trim();
             cleaned = cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
             document.getElementById('aiPolishedReview').value = `[AI Verified Cleanup]: ${cleaned}`;
@@ -233,7 +267,6 @@
         }
 
         function filterGyms() {
-            // Placeholder frontend filter logic
             alert('Filters active on current dataset.');
         }
 
@@ -246,6 +279,70 @@
             downloadAnchor.click();
             downloadAnchor.remove();
         }
+
+        // --- Photon OpenStreetMap Map Autocomplete Engine ---
+        const gymInput = document.getElementById('gymName');
+        const resultsContainer = document.getElementById('autocompleteResults');
+        const cityInput = document.getElementById('gymCity');
+        const addressInput = document.getElementById('gymAddress');
+        let searchTimeout = null;
+
+        gymInput.addEventListener('input', function() {
+            clearTimeout(searchTimeout);
+            const query = this.value.trim();
+            
+            if (query.length < 3) {
+                resultsContainer.style.display = 'none';
+                return;
+            }
+
+            // Calls API 300ms after user finishes typing to optimize speed
+            searchTimeout = setTimeout(() => {
+                // Biased coordinates centered near Orange/Santa Ana, CA to keep search local
+                fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=5&lat=33.7879&lon=-117.8531`)
+                    .then(response => response.json())
+                    .then(data => {
+                        resultsContainer.innerHTML = '';
+                        
+                        if (!data.features || data.features.length === 0) {
+                            resultsContainer.style.display = 'none';
+                            return;
+                        }
+
+                        data.features.forEach(feature => {
+                            const props = feature.properties;
+                            const name = props.name || '';
+                            const street = props.street ? `${props.housenumber || ''} ${props.street}` : '';
+                            const city = props.city || props.town || props.district || '';
+                            const state = props.state || '';
+                            
+                            const fullAddress = [street, city, state].filter(Boolean).join(', ');
+                            
+                            const item = document.createElement('div');
+                            item.className = 'autocomplete-item';
+                            item.innerHTML = `<strong>${name}</strong><span>${fullAddress}</span>`;
+                            
+                            item.addEventListener('click', () => {
+                                gymInput.value = name;
+                                if (city) cityInput.value = city;
+                                if (street) addressInput.value = street;
+                                resultsContainer.style.display = 'none';
+                            });
+                            
+                            resultsContainer.appendChild(item);
+                        });
+                        
+                        resultsContainer.style.display = 'block';
+                    });
+            }, 300);
+        });
+
+        // Close search results if clicking away
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('.autocomplete-container')) {
+                resultsContainer.style.display = 'none';
+            }
+        });
 
         // Initialize display
         window.onload = renderGyms;
