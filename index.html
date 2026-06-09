@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VBall Open Gyms - Parent Vetting Tracker</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 text-gray-900 font-sans min-h-screen pb-24">
+
+    <!-- Header -->
+    <header class="bg-blue-600 text-white shadow-md py-6 px-4 mb-8">
+        <div class="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
+            <div>
+                <h1 class="text-2xl font-bold tracking-tight">🏐 VBall Open Gyms</h1>
+                <p class="text-blue-100 text-sm mt-1">Firsthand summer open gym scouting by parents, for parents.</p>
+            </div>
+            <!-- Public Filters -->
+            <div class="flex flex-wrap gap-2 w-full md:w-auto">
+                <select id="cityFilter" onchange="filterGyms()" class="bg-white text-gray-800 px-3 py-2 rounded-md shadow text-sm border-0 focus:ring-2 focus:ring-blue-300">
+                    <option value="all">All Cities</option>
+                    <option value="Orange">Orange</option>
+                </select>
+                <select id="ratingFilter" onchange="filterGyms()" class="bg-white text-gray-800 px-3 py-2 rounded-md shadow text-sm border-0 focus:ring-2 focus:ring-blue-300">
+                    <option value="all">All Safety Ratings</option>
+                    <option value="5">5 Stars (Extremely Safe)</option>
+                    <option value="4">4+ Stars (Very Comfortable)</option>
+                </select>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Public Dashboard -->
+    <main class="max-w-6xl mx-auto px-4">
+        <div id="gymsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <!-- Dynamic gym cards load here -->
+        </div>
+    </main>
+
+    <!-- Collapsible Admin Panel Footer -->
+    <section class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-xl z-50 transition-all duration-300 max-h-[85vh] overflow-y-auto" id="adminSection">
+        <div class="bg-gray-800 text-white px-4 py-3 flex justify-between items-center cursor-pointer" onclick="toggleAdminPanel()">
+            <div class="flex items-center gap-2">
+                <span class="bg-red-500 text-xs uppercase px-2 py-0.5 rounded font-bold">Admin Panel</span>
+                <h2 class="font-semibold text-sm">Log New Court & Generate JSON Payload</h2>
+            </div>
+            <button id="toggleBtn" class="text-gray-400 hover:text-white font-bold text-lg">▲ Expand</button>
+        </div>
+        
+        <!-- Hidden Admin Content Form -->
+        <div id="adminFormContainer" class="p-6 max-w-4xl mx-auto hidden">
+            <form id="gymForm" onsubmit="handleFormSubmit(event)" class="space-y-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-bold uppercase text-gray-600 mb-1">Gym Name</label>
+                        <input type="text" id="gymName" required class="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-blue-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold uppercase text-gray-600 mb-1">City</label>
+                        <input type="text" id="gymCity" required class="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-blue-500">
+                    </div>
+                </div>
+                
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                        <label class="block text-xs font-bold uppercase text-gray-600 mb-1">Address</label>
+                        <input type="text" id="gymAddress" required class="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-blue-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold uppercase text-gray-600 mb-1">Cost / Drop-in Fee</label>
+                        <input type="text" id="gymCost" placeholder="e.g. $5 or Free" required class="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-blue-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold uppercase text-gray-600 mb-1">Daughter Safety Rating (1-5 Stars)</label>
+                        <select id="gymRating" class="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-blue-500">
+                            <option value="5">⭐⭐⭐⭐⭐ - Fully Comfortable Dropping Off</option>
+                            <option value="4">⭐⭐⭐⭐ - Good Environment, Well Supervised</option>
+                            <option value="3">⭐⭐⭐ - Decent, but Stay and Watch</option>
+                            <option value="2">⭐⭐ - Poor Lighting / Rowdy Atmosphere</option>
+                            <option value="1">⭐ - Avoid entirely</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold uppercase text-gray-600 mb-1">Media Files (Photos & Videos)</label>
+                    <input type="file" id="gymMedia" multiple accept="image/*,video/*" onchange="previewMedia(event)" class="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+                    <div id="mediaPreviews" class="grid grid-cols-4 gap-2 mt-2"></div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold uppercase text-gray-600 mb-1">Parent Vibe Check (Your Raw Input)</label>
+                    <textarea id="rawNotes" rows="3" required placeholder="Type your honest feedback here. Vibe check, lighting, net height, court coaching environment..." class="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-blue-500"></textarea>
+                    <button type="button" onclick="simulateAIPolish()" class="mt-1 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold px-3 py-1.5 rounded transition">
+                        ✨ Simulate AI Proofread & Polish
+                    </button>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold uppercase text-purple-700 mb-1 font-bold">AI Polished Output Preview</label>
+                    <textarea id="aiPolishedReview" rows="3" class="w-full bg-purple-50 border border-purple-200 rounded px-3 py-2 text-sm text-purple-900 focus:outline-purple-500"></textarea>
+                </div>
+
+                <div class="flex gap-2 pt-2">
+                    <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2 rounded text-sm transition shadow">
+                        Add to Local View
+                    </button>
+                    <button type="button" onclick="exportDataJSON()" class="bg-green-600 hover:bg-green-700 text-white font-bold px-4 py-2 rounded text-sm transition shadow ml-auto">
+                        📥 Download Clean JSON Data Payload
+                    </button>
+                </div>
+            </form>
+        </div>
+    </section>
+
+    <!-- App Engine Logic -->
+    <script>
+        // Seed database array with an initial sample location structure
+        let gyms = [
+            {
+                id: 1,
+                name: "Example Community Gym",
+                city: "Orange",
+                address: "123 Court Side Way, Orange, CA",
+                cost: "$5 Drop-in",
+                rating: "5",
+                review: "Fantastic training facility. Bright LED lighting, solid tournament nets pulled taut, and excellent supervision. Felt 100% safe dropping my 12-year-old daughter off for 2 hours of solid game touches.",
+                media: []
+            }
+        ];
+
+        let localMediaStrings = [];
+
+        function renderGyms() {
+            const grid = document.getElementById('gymsGrid');
+            grid.innerHTML = '';
+            
+            gyms.forEach(gym => {
+                let ratingStars = '⭐'.repeat(Number(gym.rating));
+                let mediaHTML = '';
+                
+                if(gym.media && gym.media.length > 0) {
+                    gym.media.forEach(src => {
+                        if(src.startsWith('data:video')) {
+                            mediaHTML += `<video src="${src}" controls class="w-full h-48 object-cover rounded mb-2"></video>`;
+                        } else {
+                            mediaHTML += `<img src="${src}" class="w-full h-48 object-cover rounded mb-2" />`;
+                        }
+                    });
+                } else {
+                    mediaHTML = `<div class="w-full h-48 bg-gray-200 rounded flex items-center justify-center text-gray-400 text-sm mb-2">No photos/videos logged yet</div>`;
+                }
+
+                grid.innerHTML += `
+                    <div class="bg-white rounded-xl shadow-md border border-gray-100 overflow-hidden flex flex-col">
+                        <div class="p-4 flex-1">
+                            <div class="flex justify-between items-start gap-2 mb-2">
+                                <h3 class="font-bold text-lg leading-snug">${gym.name}</h3>
+                                <span class="bg-blue-50 text-blue-700 font-semibold text-xs px-2 py-1 rounded whitespace-nowrap">${gym.city}</span>
+                            </div>
+                            <p class="text-xs text-gray-500 mb-3">📍 ${gym.address} • <span class="font-semibold text-gray-700">${gym.cost}</span></p>
+                            ${mediaHTML}
+                            <div class="mt-3 bg-amber-50 border border-amber-100 p-3 rounded-lg">
+                                <div class="text-amber-600 font-bold text-xs tracking-wide uppercase mb-1">Parent Vibe Check: ${ratingStars}</div>
+                                <p class="text-sm text-gray-700 italic">"${gym.review}"</p>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        function toggleAdminPanel() {
+            const form = document.getElementById('adminFormContainer');
+            const btn = document.getElementById('toggleBtn');
+            if(form.classList.contains('hidden')) {
+                form.classList.remove('hidden');
+                btn.innerText = '▼ Collapse';
+            } else {
+                form.classList.add('hidden');
+                btn.innerText = '▲ Expand';
+            }
+        }
+
+        function previewMedia(event) {
+            const files = event.target.files;
+            const container = document.getElementById('mediaPreviews');
+            container.innerHTML = '';
+            localMediaStrings = [];
+
+            Array.from(files).forEach(file => {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    localMediaStrings.push(e.target.result);
+                    if(file.type.startsWith('video/')) {
+                        container.innerHTML += `<video src="${e.target.result}" class="w-full h-16 object-cover rounded border border-gray-300"></video>`;
+                    } else {
+                        container.innerHTML += `<img src="${e.target.result}" class="w-full h-16 object-cover rounded border border-gray-300" />`;
+                    }
+                }
+                reader.readAsDataURL(file);
+            });
+        }
+
+        function simulateAIPolish() {
+            const raw = document.getElementById('rawNotes').value;
+            if(!raw) return alert('Type something in the notes first!');
+            // Simple string operations simulating clean formatting framework rules
+            let cleaned = raw.replace(/(?:\r\n|\r|\n)/g, ' ').trim();
+            cleaned = cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+            document.getElementById('aiPolishedReview').value = `[AI Verified Cleanup]: ${cleaned}`;
+        }
+
+        function handleFormSubmit(event) {
+            event.preventDefault();
+            const newGym = {
+                id: Date.now(),
+                name: document.getElementById('gymName').value,
+                city: document.getElementById('gymCity').value,
+                address: document.getElementById('gymAddress').value,
+                cost: document.getElementById('gymCost').value,
+                rating: document.getElementById('gymRating').value,
+                review: document.getElementById('aiPolishedReview').value || document.getElementById('rawNotes').value,
+                media: [...localMediaStrings]
+            };
+
+            gyms.push(newGym);
+            renderGyms();
+            document.getElementById('gymForm').reset();
+            document.getElementById('mediaPreviews').innerHTML = '';
+            alert('Added locally! Expand admin below to export your data array permanently when ready.');
+        }
+
+        function filterGyms() {
+            // Placeholder frontend filter logic
+            alert('Filters active on current dataset.');
+        }
+
+        function exportDataJSON() {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(gyms, null, 2));
+            const downloadAnchor = document.createElement('a');
+            downloadAnchor.setAttribute("href", dataStr);
+            downloadAnchor.setAttribute("download", "gyms.json");
+            document.body.appendChild(downloadAnchor);
+            downloadAnchor.click();
+            downloadAnchor.remove();
+        }
+
+        // Initialize display
+        window.onload = renderGyms;
+    </script>
+</body>
+</html>
