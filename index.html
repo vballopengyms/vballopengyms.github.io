@@ -213,7 +213,7 @@
           <label class="block sm:col-span-2">
             <span class="mb-1.5 block text-sm font-bold">Gym Name</span>
             <input id="gymName" type="text" required autocomplete="off" placeholder="Start typing a facility name..." class="h-12 w-full rounded-xl border border-slate-700 bg-slate-800 px-4 text-sm text-slate-100 placeholder:text-slate-500 outline-none transition focus:border-teal focus:ring-4 focus:ring-teal/10">
-            <span id="placesAutocompleteHost" class="hidden min-h-12 w-full overflow-visible rounded-xl border border-slate-700 bg-slate-800 px-1"></span>
+            <div id="placesAutocompleteHost" class="hidden w-full overflow-visible"></div>
             <span class="mt-1.5 block text-xs text-slate-400">Choose a Google suggestion to fill the address and city automatically.</span>
           </label>
           <label class="block">
@@ -238,6 +238,11 @@
               <option value="1">★☆☆☆☆ Would avoid</option>
             </select>
           </label>
+          <label class="block sm:col-span-2">
+            <span class="mb-1.5 block text-sm font-bold">Helpful Link <span class="font-medium text-slate-400">(optional)</span></span>
+            <input id="gymHelpfulLink" type="url" maxlength="500" inputmode="url" placeholder="https://example.com/open-gym-schedule" class="h-12 w-full rounded-xl border border-slate-700 bg-slate-800 px-4 text-sm text-slate-100 placeholder:text-slate-500 outline-none transition focus:border-teal focus:ring-4 focus:ring-teal/10">
+            <span class="mt-1.5 block text-xs text-slate-400">Share the gym website, registration page, schedule, or another useful resource.</span>
+          </label>
         </div>
 
         <div class="rounded-2xl border border-dashed border-slate-600 bg-slate-800/60 p-4">
@@ -255,11 +260,20 @@
           <div id="gymPhotoPreview" class="mt-3 hidden grid grid-cols-2 gap-3 sm:grid-cols-3"></div>
         </div>
 
-        <label class="block">
-          <span class="mb-1.5 block text-sm font-bold">Parent Vibe Check</span>
+        <div class="block">
+          <div class="mb-1.5 flex flex-wrap items-center justify-between gap-2">
+            <label for="gymReview" class="text-sm font-bold">Parent Vibe Check</label>
+            <div class="flex flex-wrap gap-2">
+              <button id="gymDictate" type="button" class="hidden rounded-lg border border-slate-600 bg-slate-800 px-3 py-1.5 text-xs font-black text-slate-200 transition hover:border-teal hover:text-teal" aria-pressed="false">🎙 Dictate</button>
+              <button id="gymSmoothReview" type="button" class="rounded-lg border border-teal/40 bg-teal/10 px-3 py-1.5 text-xs font-black text-teal transition hover:bg-teal/20 disabled:cursor-wait disabled:opacity-60">✨ Smooth with AI</button>
+            </div>
+          </div>
           <textarea id="gymReview" required minlength="20" maxlength="1200" rows="5" placeholder="How was the lighting, supervision, court setup, skill level, parking, and overall environment?" class="w-full resize-y rounded-xl border border-slate-700 bg-slate-800 px-4 py-3 text-sm leading-6 text-slate-100 placeholder:text-slate-500 outline-none transition focus:border-teal focus:ring-4 focus:ring-teal/10"></textarea>
-          <span class="mt-1.5 block text-xs text-slate-400">Please avoid sharing children's names or other identifying information.</span>
-        </label>
+          <div class="mt-1.5 flex flex-wrap justify-between gap-2 text-xs">
+            <span class="text-slate-400">Dictate naturally, then smooth the wording. Please avoid children's names or identifying details.</span>
+            <span id="gymReviewStatus" class="font-semibold text-teal" role="status" aria-live="polite"></span>
+          </div>
+        </div>
 
         <input id="gymPlaceId" type="hidden">
         <input id="gymLatitude" type="hidden">
@@ -317,6 +331,8 @@
     let placesAutocomplete = null;
     let toastTimer = null;
     let selectedGymPhotos = [];
+    let speechRecognition = null;
+    let isDictating = false;
 
     const elements = {
       gymsGrid: document.getElementById("gymsGrid"),
@@ -347,6 +363,10 @@
       gymPhotos: document.getElementById("gymPhotos"),
       gymPhotoStatus: document.getElementById("gymPhotoStatus"),
       gymPhotoPreview: document.getElementById("gymPhotoPreview"),
+      gymReview: document.getElementById("gymReview"),
+      gymReviewStatus: document.getElementById("gymReviewStatus"),
+      gymDictate: document.getElementById("gymDictate"),
+      gymSmoothReview: document.getElementById("gymSmoothReview"),
       gymSubmit: document.getElementById("gymSubmit"),
       mapsNotice: document.getElementById("mapsNotice"),
       toast: document.getElementById("toast")
@@ -536,6 +556,7 @@
     }
 
     function closeModal(element) {
+      if (element === elements.gymModal) stopDictation();
       element.classList.add("hidden");
       element.classList.remove("flex");
       if (elements.authModal.classList.contains("hidden") && elements.gymModal.classList.contains("hidden")) {
@@ -678,6 +699,16 @@
       return `https://www.yelp.com/search?find_desc=${encodeURIComponent(gym.name)}&find_loc=${encodeURIComponent(gym.city)}`;
     }
 
+    function getHelpfulLink(value) {
+      if (!value) return "";
+      try {
+        const url = new URL(value);
+        return ["http:", "https:"].includes(url.protocol) ? url.href : "";
+      } catch {
+        return "";
+      }
+    }
+
     function renderGyms() {
       const query = elements.searchInput.value.trim().toLowerCase();
       const minimumRating = elements.ratingFilter.value === "all" ? 0 : Number(elements.ratingFilter.value);
@@ -703,6 +734,7 @@
       const score = getReviewScore(gym.id);
       const userVote = currentUserId ? Number(votes[gym.id]?.[currentUserId] || 0) : 0;
       const mapUrl = getMapUrl(gym);
+      const helpfulLink = getHelpfulLink(gym.helpfulLink);
       const photos = Array.isArray(gym.photos) ? gym.photos.filter(photo => photo?.dataUrl) : [];
       const badge = authorHasBadge(gym.authorId)
         ? '<span class="rounded-full bg-amber-100 px-2 py-1 text-[10px] font-black uppercase tracking-wide text-amber-800">Top Contributor 🏆</span>'
@@ -753,7 +785,8 @@
               </div>
             </div>
 
-            <div class="mt-4 grid grid-cols-2 gap-2">
+            <div class="mt-4 grid ${helpfulLink ? "grid-cols-1 sm:grid-cols-3" : "grid-cols-2"} gap-2">
+              ${helpfulLink ? `<a href="${escapeHtml(helpfulLink)}" target="_blank" rel="noopener noreferrer" class="rounded-xl border border-teal/40 bg-teal/10 px-3 py-2.5 text-center text-xs font-black text-teal transition hover:bg-teal/20">Helpful Link ↗</a>` : ""}
               <a href="${escapeHtml(getGoogleReviewsUrl(gym))}" target="_blank" rel="noopener noreferrer" class="rounded-xl border border-slate-700 px-3 py-2.5 text-center text-xs font-black text-slate-200 transition hover:border-teal hover:text-teal">Google Maps & Reviews ↗</a>
               <a href="${escapeHtml(getYelpUrl(gym))}" target="_blank" rel="noopener noreferrer" class="rounded-xl border border-slate-700 px-3 py-2.5 text-center text-xs font-black text-slate-200 transition hover:border-coral hover:text-coral">Search on Yelp ↗</a>
             </div>
@@ -787,11 +820,133 @@
       selectedGymPhotos = [];
       renderGymPhotoPreview();
       setGymPhotoStatus("");
+      elements.gymReviewStatus.textContent = "";
+      stopDictation();
       if (placesAutocomplete) placesAutocomplete.value = "";
       showInlineError(elements.gymFormError, "");
       elements.mapsNotice.classList.toggle("hidden", HAS_GOOGLE_MAPS_KEY);
       showModal(elements.gymModal);
       setTimeout(() => document.getElementById("gymName").focus(), 50);
+    }
+
+    function locallySmoothReview(value) {
+      const cleaned = value
+        .replace(/\b(?:um+|uh+|erm+)\b[,.]?\s*/gi, "")
+        .replace(/\s+([,.!?])/g, "$1")
+        .replace(/([,.!?])(?=[A-Za-z])/g, "$1 ")
+        .replace(/\s{2,}/g, " ")
+        .trim();
+      if (!cleaned) return "";
+
+      const sentences = cleaned
+        .split(/(?<=[.!?])\s+/)
+        .map(sentence => sentence.trim())
+        .filter(Boolean)
+        .map(sentence => {
+          const capitalized = sentence.charAt(0).toUpperCase() + sentence.slice(1);
+          return /[.!?]$/.test(capitalized) ? capitalized : `${capitalized}.`;
+        });
+      return sentences.join(" ").slice(0, 1200);
+    }
+
+    async function smoothGymReview() {
+      const original = elements.gymReview.value.trim();
+      if (original.length < 10) {
+        elements.gymReviewStatus.textContent = "Add a little more detail first.";
+        elements.gymReview.focus();
+        return;
+      }
+
+      elements.gymSmoothReview.disabled = true;
+      elements.gymSmoothReview.textContent = "Smoothing...";
+      elements.gymReviewStatus.textContent = "Keeping your facts and tone intact.";
+      let session = null;
+
+      try {
+        if (!window.LanguageModel) throw new Error("Browser AI unavailable");
+        const availability = await LanguageModel.availability();
+        if (availability === "unavailable") throw new Error("Browser AI unavailable");
+
+        session = await LanguageModel.create({
+          monitor(monitor) {
+            monitor.addEventListener("downloadprogress", event => {
+              elements.gymReviewStatus.textContent = `Preparing on-device AI: ${Math.round(event.loaded * 100)}%`;
+            });
+          }
+        });
+        const improved = await session.prompt(
+          `Polish this dictated parent review of a youth volleyball gym. Keep every factual claim, concern, and opinion unchanged. Remove filler words, fix punctuation and grammar, and make it warm, candid, and concise. Do not add facts, names, headings, quotation marks, or safety assurances. Return only the revised review, no more than 1200 characters.\n\nReview:\n${original}`
+        );
+        elements.gymReview.value = improved.trim().slice(0, 1200);
+        elements.gymReviewStatus.textContent = "Smoothed on this device. Please review before publishing.";
+      } catch (error) {
+        elements.gymReview.value = locallySmoothReview(original);
+        elements.gymReviewStatus.textContent = "AI was unavailable, so punctuation was cleaned locally.";
+      } finally {
+        elements.gymSmoothReview.disabled = false;
+        elements.gymSmoothReview.textContent = "✨ Smooth with AI";
+        elements.gymReview.focus();
+        session?.destroy();
+      }
+    }
+
+    function stopDictation() {
+      if (speechRecognition && isDictating) speechRecognition.stop();
+      isDictating = false;
+      elements.gymDictate.setAttribute("aria-pressed", "false");
+      elements.gymDictate.textContent = "🎙 Dictate";
+    }
+
+    function initializeDictation() {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SpeechRecognition) return;
+
+      elements.gymDictate.classList.remove("hidden");
+      speechRecognition = new SpeechRecognition();
+      speechRecognition.lang = "en-US";
+      speechRecognition.continuous = true;
+      speechRecognition.interimResults = false;
+
+      speechRecognition.addEventListener("result", event => {
+        const transcript = Array.from(event.results)
+          .slice(event.resultIndex)
+          .filter(result => result.isFinal)
+          .map(result => result[0].transcript.trim())
+          .join(" ");
+        if (!transcript) return;
+        const current = elements.gymReview.value.trim();
+        elements.gymReview.value = `${current}${current ? " " : ""}${transcript}`.slice(0, 1200);
+        elements.gymReviewStatus.textContent = "Dictation added. Smooth it when you are finished.";
+      });
+
+      speechRecognition.addEventListener("end", () => {
+        isDictating = false;
+        elements.gymDictate.setAttribute("aria-pressed", "false");
+        elements.gymDictate.textContent = "🎙 Dictate";
+      });
+
+      speechRecognition.addEventListener("error", event => {
+        elements.gymReviewStatus.textContent = event.error === "not-allowed"
+          ? "Microphone permission is needed for dictation."
+          : "Dictation stopped. You can keep typing.";
+      });
+    }
+
+    function toggleDictation() {
+      if (!speechRecognition) return;
+      if (isDictating) {
+        stopDictation();
+        return;
+      }
+      try {
+        speechRecognition.start();
+        isDictating = true;
+        elements.gymDictate.setAttribute("aria-pressed", "true");
+        elements.gymDictate.textContent = "■ Stop";
+        elements.gymReviewStatus.textContent = "Listening...";
+      } catch {
+        elements.gymReviewStatus.textContent = "Dictation is already starting.";
+      }
     }
 
     function getAddressComponent(place, types) {
@@ -871,8 +1026,14 @@
       }
 
       const review = document.getElementById("gymReview").value.trim();
+      const helpfulLinkInput = document.getElementById("gymHelpfulLink").value.trim();
+      const helpfulLink = getHelpfulLink(helpfulLinkInput);
       if (review.length < 20) {
         showInlineError(elements.gymFormError, "Please share at least 20 characters of useful firsthand detail.");
+        return;
+      }
+      if (helpfulLinkInput && !helpfulLink) {
+        showInlineError(elements.gymFormError, "Please enter a complete helpful link beginning with http:// or https://.");
         return;
       }
 
@@ -884,6 +1045,7 @@
         cost: document.getElementById("gymCost").value.trim(),
         rating: Number(document.getElementById("gymRating").value),
         review,
+        helpfulLink,
         placeId: document.getElementById("gymPlaceId").value,
         latitude: Number(document.getElementById("gymLatitude").value) || null,
         longitude: Number(document.getElementById("gymLongitude").value) || null,
@@ -911,6 +1073,8 @@
     elements.addGymButton.addEventListener("click", () => requireAuth(openGymForm));
     elements.gymForm.addEventListener("submit", handleGymSubmit);
     elements.gymPhotos.addEventListener("change", handleGymPhotos);
+    elements.gymSmoothReview.addEventListener("click", smoothGymReview);
+    elements.gymDictate.addEventListener("click", toggleDictation);
     elements.searchInput.addEventListener("input", renderGyms);
     elements.ratingFilter.addEventListener("change", renderGyms);
     elements.sortFilter.addEventListener("change", renderGyms);
@@ -949,6 +1113,7 @@
 
     updateUserUI();
     renderGyms();
+    initializeDictation();
     loadGoogleMaps();
   </script>
 </body>
