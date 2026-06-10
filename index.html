@@ -87,6 +87,7 @@
         <div id="userSummary" data-authenticated="false" class="text-right">
           <div class="flex items-center justify-end gap-1.5">
             <span id="headerUserEmail" class="max-w-48 truncate text-sm font-bold"></span>
+            <span id="headerAdminBadge" class="hidden rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-black uppercase text-rose-800">Admin</span>
             <span id="headerBadge" class="hidden rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-black uppercase text-amber-800">Top Contributor 🏆</span>
           </div>
           <p class="text-xs text-slate-400"><span id="headerKarma" class="font-bold text-teal">0</span> Karma</p>
@@ -292,6 +293,7 @@
   <script>
     // Add a browser-restricted  with Maps JavaScript API and Places API enabled.
     const GOOGLE_MAPS_API_KEY = "AIzaSyCFFQm_aSS1KnIPJs12LL4wVZTfdAVrgdo";
+    const ADMIN_EMAIL = "sanny.do@gmail.com";
 
     const HAS_GOOGLE_MAPS_KEY = Boolean(
       GOOGLE_MAPS_API_KEY.trim() && GOOGLE_MAPS_API_KEY.trim() !== "YOUR_KEY_HERE"
@@ -304,23 +306,7 @@
       session: "vball-open-gyms-session-v2"
     };
 
-    const seedGyms = [
-      {
-        id: "welcome-review",
-        name: "Example Community Gym",
-        city: "Orange",
-        address: "123 Court Side Way",
-        cost: "$5 drop-in",
-        rating: 5,
-        review: "Bright lighting, well-maintained tournament nets, and attentive supervision. Parking was easy and the check-in process felt organized.",
-        placeId: "",
-        latitude: null,
-        longitude: null,
-        authorId: "community",
-        authorEmail: "VBall Open Gyms",
-        createdAt: "2026-06-01T12:00:00.000Z"
-      }
-    ];
+    const seedGyms = [];
 
     let gyms = readStorage(STORAGE_KEYS.gyms, seedGyms);
     let users = readStorage(STORAGE_KEYS.users, {});
@@ -357,6 +343,7 @@
       userSummary: document.getElementById("userSummary"),
       headerUserEmail: document.getElementById("headerUserEmail"),
       headerKarma: document.getElementById("headerKarma"),
+      headerAdminBadge: document.getElementById("headerAdminBadge"),
       headerBadge: document.getElementById("headerBadge"),
       gymForm: document.getElementById("gymForm"),
       gymFormError: document.getElementById("gymFormError"),
@@ -525,6 +512,10 @@
       return currentUserId ? users[currentUserId] || null : null;
     }
 
+    function isAdmin(user = getCurrentUser()) {
+      return normalizeEmail(user?.email || "") === ADMIN_EMAIL;
+    }
+
     function getReviewScore(gymId) {
       return Object.values(votes[gymId] || {}).reduce((total, vote) => total + Number(vote), 0);
     }
@@ -678,6 +669,7 @@
       const karma = getUserKarma(user.id);
       elements.headerUserEmail.textContent = user.email;
       elements.headerKarma.textContent = String(karma);
+      elements.headerAdminBadge.classList.toggle("hidden", !isAdmin(user));
       elements.headerBadge.classList.toggle("hidden", karma < 10);
     }
 
@@ -736,6 +728,9 @@
       const mapUrl = getMapUrl(gym);
       const helpfulLink = getHelpfulLink(gym.helpfulLink);
       const photos = Array.isArray(gym.photos) ? gym.photos.filter(photo => photo?.dataUrl) : [];
+      const adminDeleteButton = isAdmin()
+        ? `<button type="button" data-delete-review="${escapeHtml(gym.id)}" class="rounded-xl border border-rose-500/50 bg-rose-950/40 px-3 py-2.5 text-center text-xs font-black text-rose-300 transition hover:bg-rose-900/70 hover:text-white">Delete review</button>`
+        : "";
       const badge = authorHasBadge(gym.authorId)
         ? '<span class="rounded-full bg-amber-100 px-2 py-1 text-[10px] font-black uppercase tracking-wide text-amber-800">Top Contributor 🏆</span>'
         : "";
@@ -785,10 +780,11 @@
               </div>
             </div>
 
-            <div class="mt-4 grid ${helpfulLink ? "grid-cols-1 sm:grid-cols-3" : "grid-cols-2"} gap-2">
+            <div class="mt-4 grid ${helpfulLink || adminDeleteButton ? "grid-cols-1 sm:grid-cols-3" : "grid-cols-2"} gap-2">
               ${helpfulLink ? `<a href="${escapeHtml(helpfulLink)}" target="_blank" rel="noopener noreferrer" class="rounded-xl border border-teal/40 bg-teal/10 px-3 py-2.5 text-center text-xs font-black text-teal transition hover:bg-teal/20">Helpful Link ↗</a>` : ""}
               <a href="${escapeHtml(getGoogleReviewsUrl(gym))}" target="_blank" rel="noopener noreferrer" class="rounded-xl border border-slate-700 px-3 py-2.5 text-center text-xs font-black text-slate-200 transition hover:border-teal hover:text-teal">Google Maps & Reviews ↗</a>
               <a href="${escapeHtml(getYelpUrl(gym))}" target="_blank" rel="noopener noreferrer" class="rounded-xl border border-slate-700 px-3 py-2.5 text-center text-xs font-black text-slate-200 transition hover:border-coral hover:text-coral">Search on Yelp ↗</a>
+              ${adminDeleteButton}
             </div>
           </div>
         </article>
@@ -813,6 +809,34 @@
         renderGyms();
         updateUserUI();
       });
+    }
+
+    function handleDeleteReview(gymId) {
+      if (!isAdmin()) {
+        showToast("Only the admin can delete reviews.");
+        return;
+      }
+
+      const gym = gyms.find(item => item.id === gymId);
+      if (!gym || !window.confirm(`Delete the review for "${gym.name}"? This cannot be undone.`)) return;
+
+      const previousGyms = gyms;
+      const previousVotes = votes;
+      gyms = gyms.filter(item => item.id !== gymId);
+      votes = { ...votes };
+      delete votes[gymId];
+
+      if (!writeStorage(STORAGE_KEYS.gyms, gyms) || !writeStorage(STORAGE_KEYS.votes, votes)) {
+        gyms = previousGyms;
+        votes = previousVotes;
+        writeStorage(STORAGE_KEYS.gyms, gyms);
+        writeStorage(STORAGE_KEYS.votes, votes);
+        return;
+      }
+
+      renderGyms();
+      updateUserUI();
+      showToast("Review deleted.");
     }
 
     function openGymForm() {
@@ -1089,6 +1113,9 @@
       const voteButton = event.target.closest("[data-vote]");
       if (voteButton) handleVote(voteButton.dataset.gymId, Number(voteButton.dataset.vote));
 
+      const deleteButton = event.target.closest("[data-delete-review]");
+      if (deleteButton) handleDeleteReview(deleteButton.dataset.deleteReview);
+
       const removePhotoButton = event.target.closest("[data-remove-gym-photo]");
       if (removePhotoButton) {
         selectedGymPhotos.splice(Number(removePhotoButton.dataset.removeGymPhoto), 1);
@@ -1112,6 +1139,13 @@
     if (currentUserId && !users[currentUserId]) {
       currentUserId = "";
       sessionStorage.removeItem(STORAGE_KEYS.session);
+    }
+
+    if (gyms.some(gym => gym.id === "welcome-review")) {
+      gyms = gyms.filter(gym => gym.id !== "welcome-review");
+      delete votes["welcome-review"];
+      writeStorage(STORAGE_KEYS.gyms, gyms);
+      writeStorage(STORAGE_KEYS.votes, votes);
     }
 
     updateUserUI();
