@@ -7,6 +7,8 @@
   <title>VBall Open Gyms | Parent Vibe Checks</title>
   <link rel="icon" type="image/jpeg" href="sqlogov1.jpg">
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
   <script>
     tailwind.config = {
       theme: {
@@ -307,6 +309,16 @@
     // Add a browser-restricted  with Maps JavaScript API and Places API enabled.
     const GOOGLE_MAPS_API_KEY = "AIzaSyCFFQm_aSS1KnIPJs12LL4wVZTfdAVrgdo";
     const ADMIN_EMAIL = "sanny.do@gmail.com";
+    const SUPABASE_URL = window.VBALL_CONFIG?.supabaseUrl || "";
+    const SUPABASE_PUBLISHABLE_KEY = window.VBALL_CONFIG?.supabasePublishableKey || "";
+    const HAS_SUPABASE_CONFIG = Boolean(
+      SUPABASE_URL.startsWith("https://") &&
+      SUPABASE_PUBLISHABLE_KEY &&
+      !SUPABASE_URL.includes("YOUR_PROJECT")
+    );
+    const supabaseClient = HAS_SUPABASE_CONFIG
+      ? window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY)
+      : null;
 
     const HAS_GOOGLE_MAPS_KEY = Boolean(
       GOOGLE_MAPS_API_KEY.trim() && GOOGLE_MAPS_API_KEY.trim() !== "YOUR_KEY_HERE"
@@ -314,17 +326,15 @@
 
     const STORAGE_KEYS = {
       gyms: "vball-open-gyms-reviews-v2",
-      users: "vball-open-gyms-users-v2",
       votes: "vball-open-gyms-votes-v2",
-      session: "vball-open-gyms-session-v2"
+      migrated: "vball-open-gyms-supabase-migrated-v1"
     };
 
     const seedGyms = [];
 
-    let gyms = readStorage(STORAGE_KEYS.gyms, seedGyms);
-    let users = readStorage(STORAGE_KEYS.users, {});
-    let votes = readStorage(STORAGE_KEYS.votes, {});
-    let currentUserId = sessionStorage.getItem(STORAGE_KEYS.session) || "";
+    let gyms = HAS_SUPABASE_CONFIG ? [] : readStorage(STORAGE_KEYS.gyms, seedGyms);
+    let votes = HAS_SUPABASE_CONFIG ? {} : readStorage(STORAGE_KEYS.votes, {});
+    let currentUser = null;
     let authMode = "login";
     let pendingAction = null;
     let placesAutocomplete = null;
@@ -499,37 +509,8 @@
       return `${value.charAt(0)}***@***`;
     }
 
-    function bytesToBase64(bytes) {
-      return btoa(String.fromCharCode(...bytes));
-    }
-
-    function base64ToBytes(value) {
-      return Uint8Array.from(atob(value), character => character.charCodeAt(0));
-    }
-
-    async function hashPassword(password, salt) {
-      const passwordKey = await crypto.subtle.importKey(
-        "raw",
-        new TextEncoder().encode(password),
-        "PBKDF2",
-        false,
-        ["deriveBits"]
-      );
-      const bits = await crypto.subtle.deriveBits(
-        { name: "PBKDF2", hash: "SHA-256", salt, iterations: 210000 },
-        passwordKey,
-        256
-      );
-      return bytesToBase64(new Uint8Array(bits));
-    }
-
-    async function idFromEmail(email) {
-      const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(email));
-      return bytesToBase64(new Uint8Array(digest)).replaceAll(/[+/=]/g, "").slice(0, 24);
-    }
-
     function getCurrentUser() {
-      return currentUserId ? users[currentUserId] || null : null;
+      return currentUser;
     }
 
     function isAdmin(user = getCurrentUser()) {
@@ -588,6 +569,10 @@
     }
 
     function requireAuth(action) {
+      if (!HAS_SUPABASE_CONFIG) {
+        showToast("Shared database setup is not finished yet.");
+        return;
+      }
       if (getCurrentUser()) {
         action();
         return;
@@ -632,30 +617,20 @@
       elements.authSubmit.textContent = authMode === "login" ? "Logging in..." : "Creating account...";
 
       try {
-        const userId = await idFromEmail(email);
-        if (authMode === "signup") {
-          if (users[userId]) throw new Error("An account with that email already exists.");
-          const salt = crypto.getRandomValues(new Uint8Array(16));
-          users[userId] = {
-            id: userId,
-            email,
-            salt: bytesToBase64(salt),
-            passwordHash: await hashPassword(password, salt),
-            createdAt: new Date().toISOString()
-          };
-          if (!writeStorage(STORAGE_KEYS.users, users)) {
-            delete users[userId];
-            throw new Error("Your account could not be saved on this device.");
-          }
-        } else {
-          const user = users[userId];
-          if (!user) throw new Error("No account was found for that email.");
-          const candidateHash = await hashPassword(password, base64ToBytes(user.salt));
-          if (candidateHash !== user.passwordHash) throw new Error("That password is incorrect.");
+        if (!supabaseClient) throw new Error("Shared database setup is not finished yet.");
+        const result = authMode === "signup"
+          ? await supabaseClient.auth.signUp({ email, password })
+          : await supabaseClient.auth.signInWithPassword({ email, password });
+        if (result.error) throw result.error;
+        currentUser = result.data.user || null;
+
+        if (!result.data.session) {
+          showInlineError(elements.authError, "Check your email to confirm the account, then log in.");
+          return;
         }
 
-        currentUserId = userId;
-        sessionStorage.setItem(STORAGE_KEYS.session, currentUserId);
+        await migrateLocalReviews();
+        await loadSharedData();
         closeModal(elements.authModal);
         updateUserUI();
         showToast(authMode === "signup" ? "Account created. Welcome!" : "You are logged in.");
@@ -671,10 +646,10 @@
       }
     }
 
-    function logOut() {
-      currentUserId = "";
+    async function logOut() {
+      if (supabaseClient) await supabaseClient.auth.signOut();
+      currentUser = null;
       pendingAction = null;
-      sessionStorage.removeItem(STORAGE_KEYS.session);
       updateUserUI();
       renderGyms();
       showToast("You are logged out.");
@@ -691,6 +666,74 @@
       elements.headerKarma.textContent = String(karma);
       elements.headerAdminBadge.classList.toggle("hidden", !isAdmin(user));
       elements.headerBadge.classList.toggle("hidden", karma < 10);
+    }
+
+    function mapReview(row) {
+      return {
+        id: row.id,
+        name: row.name,
+        city: row.city,
+        address: row.address,
+        cost: row.cost,
+        rating: Number(row.rating),
+        review: row.review,
+        helpfulLinks: Array.isArray(row.helpful_links) ? row.helpful_links : [],
+        placeId: row.place_id || "",
+        latitude: row.latitude,
+        longitude: row.longitude,
+        photos: Array.isArray(row.photos) ? row.photos : [],
+        authorId: row.author_id,
+        authorEmail: row.author_mask || "Community member",
+        createdAt: row.created_at
+      };
+    }
+
+    async function loadSharedData() {
+      if (!supabaseClient) return;
+      const [reviewsResult, votesResult] = await Promise.all([
+        supabaseClient.from("reviews").select("*").order("created_at", { ascending: false }),
+        supabaseClient.from("votes").select("review_id,user_id,value")
+      ]);
+      if (reviewsResult.error) throw reviewsResult.error;
+      if (votesResult.error) throw votesResult.error;
+
+      gyms = reviewsResult.data.map(mapReview);
+      votes = {};
+      votesResult.data.forEach(vote => {
+        if (!votes[vote.review_id]) votes[vote.review_id] = {};
+        votes[vote.review_id][vote.user_id] = Number(vote.value);
+      });
+      renderGyms();
+      updateUserUI();
+    }
+
+    async function migrateLocalReviews() {
+      if (!supabaseClient || !currentUser || localStorage.getItem(STORAGE_KEYS.migrated)) return;
+      const localGyms = readStorage(STORAGE_KEYS.gyms, []);
+      if (!localGyms.length) {
+        localStorage.setItem(STORAGE_KEYS.migrated, "true");
+        return;
+      }
+
+      const rows = localGyms.map(gym => ({
+        name: gym.name,
+        city: gym.city,
+        address: gym.address,
+        cost: gym.cost,
+        rating: Number(gym.rating),
+        review: gym.review,
+        helpful_links: Array.isArray(gym.helpfulLinks) ? gym.helpfulLinks : [],
+        place_id: gym.placeId || "",
+        latitude: gym.latitude || null,
+        longitude: gym.longitude || null,
+        photos: Array.isArray(gym.photos) ? gym.photos : [],
+        author_id: currentUser.id,
+        author_mask: maskEmail(currentUser.email)
+      }));
+      const { error } = await supabaseClient.from("reviews").insert(rows);
+      if (error) throw error;
+      localStorage.setItem(STORAGE_KEYS.migrated, "true");
+      showToast(`${rows.length} saved ${rows.length === 1 ? "review" : "reviews"} moved to the shared database.`);
     }
 
     function getMapUrl(gym) {
@@ -749,7 +792,7 @@
 
     function renderGymCard(gym) {
       const score = getReviewScore(gym.id);
-      const userVote = currentUserId ? Number(votes[gym.id]?.[currentUserId] || 0) : 0;
+      const userVote = currentUser ? Number(votes[gym.id]?.[currentUser.id] || 0) : 0;
       const mapUrl = getMapUrl(gym);
       const helpfulLinks = getHelpfulLinks(gym);
       const photos = Array.isArray(gym.photos) ? gym.photos.filter(photo => photo?.dataUrl) : [];
@@ -817,26 +860,31 @@
     }
 
     function handleVote(gymId, requestedVote) {
-      requireAuth(() => {
+      requireAuth(async () => {
         const gym = gyms.find(item => item.id === gymId);
-        if (gym?.authorId === currentUserId) {
+        if (gym?.authorId === currentUser.id) {
           showToast("You cannot rate your own vibe check.");
           return;
         }
         if (!votes[gymId]) votes[gymId] = {};
-        const existingVote = Number(votes[gymId][currentUserId] || 0);
-        if (existingVote === requestedVote) {
-          delete votes[gymId][currentUserId];
-        } else {
-          votes[gymId][currentUserId] = requestedVote;
+        const existingVote = Number(votes[gymId][currentUser.id] || 0);
+        const query = existingVote === requestedVote
+          ? supabaseClient.from("votes").delete().eq("review_id", gymId).eq("user_id", currentUser.id)
+          : supabaseClient.from("votes").upsert({
+              review_id: gymId,
+              user_id: currentUser.id,
+              value: requestedVote
+            });
+        const { error } = await query;
+        if (error) {
+          showToast(error.message || "Your vote could not be saved.");
+          return;
         }
-        writeStorage(STORAGE_KEYS.votes, votes);
-        renderGyms();
-        updateUserUI();
+        await loadSharedData();
       });
     }
 
-    function handleDeleteReview(gymId) {
+    async function handleDeleteReview(gymId) {
       if (!isAdmin()) {
         showToast("Only the admin can delete reviews.");
         return;
@@ -845,22 +893,13 @@
       const gym = gyms.find(item => item.id === gymId);
       if (!gym || !window.confirm(`Delete the review for "${gym.name}"? This cannot be undone.`)) return;
 
-      const previousGyms = gyms;
-      const previousVotes = votes;
-      gyms = gyms.filter(item => item.id !== gymId);
-      votes = { ...votes };
-      delete votes[gymId];
-
-      if (!writeStorage(STORAGE_KEYS.gyms, gyms) || !writeStorage(STORAGE_KEYS.votes, votes)) {
-        gyms = previousGyms;
-        votes = previousVotes;
-        writeStorage(STORAGE_KEYS.gyms, gyms);
-        writeStorage(STORAGE_KEYS.votes, votes);
+      const { error } = await supabaseClient.from("reviews").delete().eq("id", gymId);
+      if (error) {
+        showToast(error.message || "The review could not be deleted.");
         return;
       }
 
-      renderGyms();
-      updateUserUI();
+      await loadSharedData();
       showToast("Review deleted.");
     }
 
@@ -1063,7 +1102,7 @@
       document.head.appendChild(script);
     }
 
-    function handleGymSubmit(event) {
+    async function handleGymSubmit(event) {
       event.preventDefault();
       const user = getCurrentUser();
       if (!user) {
@@ -1091,33 +1130,35 @@
       }
 
       const gym = {
-        id: crypto.randomUUID(),
         name: document.getElementById("gymName").value.trim(),
         city: document.getElementById("gymCity").value.trim(),
         address: document.getElementById("gymAddress").value.trim(),
         cost: document.getElementById("gymCost").value.trim(),
         rating: Number(document.getElementById("gymRating").value),
         review,
-        helpfulLinks,
-        placeId: document.getElementById("gymPlaceId").value,
+        helpful_links: helpfulLinks,
+        place_id: document.getElementById("gymPlaceId").value,
         latitude: Number(document.getElementById("gymLatitude").value) || null,
         longitude: Number(document.getElementById("gymLongitude").value) || null,
         photos: selectedGymPhotos.map(photo => ({ dataUrl: photo.dataUrl })),
-        authorId: user.id,
-        authorEmail: user.email,
-        createdAt: new Date().toISOString()
+        author_id: user.id,
+        author_mask: maskEmail(user.email)
       };
 
-      gyms.unshift(gym);
-      if (!writeStorage(STORAGE_KEYS.gyms, gyms)) {
-        gyms.shift();
-        return;
+      elements.gymSubmit.disabled = true;
+      elements.gymSubmit.textContent = "Publishing...";
+      try {
+        const { error } = await supabaseClient.from("reviews").insert(gym);
+        if (error) throw error;
+        closeModal(elements.gymModal);
+        await loadSharedData();
+        showToast("Your gym vibe check is live.");
+      } catch (error) {
+        showInlineError(elements.gymFormError, error.message || "Your vibe check could not be published.");
+      } finally {
+        elements.gymSubmit.disabled = false;
+        elements.gymSubmit.textContent = "Publish Vibe Check";
       }
-
-      closeModal(elements.gymModal);
-      renderGyms();
-      updateUserUI();
-      showToast("Your gym vibe check is live.");
     }
 
     elements.authForm.addEventListener("submit", handleAuthSubmit);
@@ -1162,22 +1203,36 @@
       });
     });
 
-    if (currentUserId && !users[currentUserId]) {
-      currentUserId = "";
-      sessionStorage.removeItem(STORAGE_KEYS.session);
+    async function initializeApp() {
+      updateUserUI();
+      renderGyms();
+      initializeDictation();
+      loadGoogleMaps();
+
+      if (!supabaseClient) {
+        console.warn("Add the Supabase project URL and publishable key to config.js.");
+        return;
+      }
+
+      try {
+        const { data, error } = await supabaseClient.auth.getSession();
+        if (error) throw error;
+        currentUser = data.session?.user || null;
+        if (currentUser) await migrateLocalReviews();
+        await loadSharedData();
+      } catch (error) {
+        console.error("Unable to load shared data", error);
+        showToast("The shared reviews could not be loaded. Please refresh.");
+      }
+
+      supabaseClient.auth.onAuthStateChange((_event, session) => {
+        currentUser = session?.user || null;
+        updateUserUI();
+        renderGyms();
+      });
     }
 
-    if (gyms.some(gym => gym.id === "welcome-review")) {
-      gyms = gyms.filter(gym => gym.id !== "welcome-review");
-      delete votes["welcome-review"];
-      writeStorage(STORAGE_KEYS.gyms, gyms);
-      writeStorage(STORAGE_KEYS.votes, votes);
-    }
-
-    updateUserUI();
-    renderGyms();
-    initializeDictation();
-    loadGoogleMaps();
+    initializeApp();
   </script>
 </body>
 </html>
