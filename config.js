@@ -1,4 +1,4 @@
 window.VBALL_CONFIG = {
-  supabaseUrl: "https://YOUR_PROJECT.supabase.co",
+  supabaseUrl: "https://sqtfoetshharoybuinma.supabase.co",
   supabasePublishableKey: "YOUR_SUPABASE_PUBLISHABLE_KEY"
 };
