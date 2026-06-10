@@ -240,6 +240,21 @@
           </label>
         </div>
 
+        <div class="rounded-2xl border border-dashed border-slate-600 bg-slate-800/60 p-4">
+          <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p class="text-sm font-bold">Helpful Photos <span class="font-medium text-slate-400">(optional)</span></p>
+              <p class="mt-1 text-xs leading-5 text-slate-400">Add up to 3 photos of courts, entrances, parking, signs, or amenities. Avoid recognizable children and license plates.</p>
+            </div>
+            <label class="inline-flex h-11 shrink-0 cursor-pointer items-center justify-center rounded-xl bg-slate-700 px-4 text-sm font-black text-slate-100 transition hover:bg-slate-600">
+              <span>＋ Add photos</span>
+              <input id="gymPhotos" type="file" accept="image/jpeg,image/png,image/webp" multiple class="sr-only">
+            </label>
+          </div>
+          <div id="gymPhotoStatus" class="mt-3 hidden text-xs font-semibold text-teal" role="status"></div>
+          <div id="gymPhotoPreview" class="mt-3 hidden grid grid-cols-2 gap-3 sm:grid-cols-3"></div>
+        </div>
+
         <label class="block">
           <span class="mb-1.5 block text-sm font-bold">Parent Vibe Check</span>
           <textarea id="gymReview" required minlength="20" maxlength="1200" rows="5" placeholder="How was the lighting, supervision, court setup, skill level, parking, and overall environment?" class="w-full resize-y rounded-xl border border-slate-700 bg-slate-800 px-4 py-3 text-sm leading-6 text-slate-100 placeholder:text-slate-500 outline-none transition focus:border-teal focus:ring-4 focus:ring-teal/10"></textarea>
@@ -252,7 +267,7 @@
         <p id="gymFormError" class="hidden rounded-xl bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700" role="alert"></p>
         <div class="flex flex-col-reverse gap-3 pt-1 sm:flex-row sm:justify-end">
           <button type="button" data-close-modal="gymModal" class="h-12 rounded-xl border border-slate-600 px-5 text-sm font-bold text-slate-200 transition hover:bg-slate-800">Cancel</button>
-          <button type="submit" class="h-12 rounded-xl bg-coral px-6 text-sm font-black text-white shadow-lg shadow-coral/20 transition hover:bg-[#df513b]">Publish Vibe Check</button>
+          <button id="gymSubmit" type="submit" class="h-12 rounded-xl bg-coral px-6 text-sm font-black text-white shadow-lg shadow-coral/20 transition hover:bg-[#df513b] disabled:cursor-wait disabled:opacity-60">Publish Vibe Check</button>
         </div>
       </form>
     </div>
@@ -301,6 +316,7 @@
     let pendingAction = null;
     let placesAutocomplete = null;
     let toastTimer = null;
+    let selectedGymPhotos = [];
 
     const elements = {
       gymsGrid: document.getElementById("gymsGrid"),
@@ -328,6 +344,10 @@
       headerBadge: document.getElementById("headerBadge"),
       gymForm: document.getElementById("gymForm"),
       gymFormError: document.getElementById("gymFormError"),
+      gymPhotos: document.getElementById("gymPhotos"),
+      gymPhotoStatus: document.getElementById("gymPhotoStatus"),
+      gymPhotoPreview: document.getElementById("gymPhotoPreview"),
+      gymSubmit: document.getElementById("gymSubmit"),
       mapsNotice: document.getElementById("mapsNotice"),
       toast: document.getElementById("toast")
     };
@@ -360,6 +380,92 @@
         .replaceAll(">", "&gt;")
         .replaceAll('"', "&quot;")
         .replaceAll("'", "&#039;");
+    }
+
+    function renderGymPhotoPreview() {
+      elements.gymPhotoPreview.classList.toggle("hidden", selectedGymPhotos.length === 0);
+      elements.gymPhotoPreview.innerHTML = selectedGymPhotos.map((photo, index) => `
+        <div class="relative overflow-hidden rounded-xl border border-slate-600 bg-slate-900">
+          <img src="${escapeHtml(photo.dataUrl)}" alt="Selected gym photo ${index + 1}" class="h-28 w-full object-cover">
+          <button type="button" data-remove-gym-photo="${index}" class="absolute right-2 top-2 grid h-8 w-8 place-items-center rounded-full bg-slate-950/85 text-lg font-bold text-white shadow-lg transition hover:bg-rose-600" aria-label="Remove photo ${index + 1}">×</button>
+        </div>
+      `).join("");
+    }
+
+    function setGymPhotoStatus(message, isError = false) {
+      elements.gymPhotoStatus.textContent = message;
+      elements.gymPhotoStatus.classList.toggle("hidden", !message);
+      elements.gymPhotoStatus.classList.toggle("text-teal", !isError);
+      elements.gymPhotoStatus.classList.toggle("text-rose-400", isError);
+    }
+
+    async function resizeGymPhoto(file) {
+      if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+        throw new Error(`${file.name} is not a supported image type.`);
+      }
+      if (file.size > 10 * 1024 * 1024) {
+        throw new Error(`${file.name} is larger than 10 MB.`);
+      }
+
+      const objectUrl = URL.createObjectURL(file);
+      try {
+        const image = new Image();
+        image.src = objectUrl;
+        await image.decode();
+
+        let maxDimension = 1000;
+        let quality = 0.76;
+        let dataUrl = "";
+
+        for (let attempt = 0; attempt < 4; attempt += 1) {
+          const scale = Math.min(1, maxDimension / Math.max(image.naturalWidth, image.naturalHeight));
+          const canvas = document.createElement("canvas");
+          canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+          canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+          const context = canvas.getContext("2d");
+          context.fillStyle = "#ffffff";
+          context.fillRect(0, 0, canvas.width, canvas.height);
+          context.drawImage(image, 0, 0, canvas.width, canvas.height);
+          dataUrl = canvas.toDataURL("image/jpeg", quality);
+          if (dataUrl.length <= 450000) break;
+          maxDimension *= 0.8;
+          quality -= 0.1;
+        }
+
+        return { dataUrl };
+      } finally {
+        URL.revokeObjectURL(objectUrl);
+      }
+    }
+
+    async function handleGymPhotos(event) {
+      const availableSlots = 3 - selectedGymPhotos.length;
+      const requestedFiles = Array.from(event.target.files || []);
+      const files = requestedFiles.slice(0, availableSlots);
+      event.target.value = "";
+
+      if (!files.length) {
+        setGymPhotoStatus(availableSlots ? "" : "You can add up to 3 photos.", !availableSlots);
+        return;
+      }
+
+      elements.gymPhotos.disabled = true;
+      elements.gymSubmit.disabled = true;
+      setGymPhotoStatus(`Preparing ${files.length} ${files.length === 1 ? "photo" : "photos"}...`);
+
+      try {
+        for (const file of files) {
+          selectedGymPhotos.push(await resizeGymPhoto(file));
+        }
+        const extraMessage = requestedFiles.length > files.length ? " Extra selections were skipped." : "";
+        setGymPhotoStatus(`${selectedGymPhotos.length} of 3 photos ready.${extraMessage}`);
+      } catch (error) {
+        setGymPhotoStatus(error.message || "One of those photos could not be prepared.", true);
+      } finally {
+        renderGymPhotoPreview();
+        elements.gymPhotos.disabled = false;
+        elements.gymSubmit.disabled = false;
+      }
     }
 
     function normalizeEmail(email) {
@@ -597,6 +703,7 @@
       const score = getReviewScore(gym.id);
       const userVote = currentUserId ? Number(votes[gym.id]?.[currentUserId] || 0) : 0;
       const mapUrl = getMapUrl(gym);
+      const photos = Array.isArray(gym.photos) ? gym.photos.filter(photo => photo?.dataUrl) : [];
       const badge = authorHasBadge(gym.authorId)
         ? '<span class="rounded-full bg-amber-100 px-2 py-1 text-[10px] font-black uppercase tracking-wide text-amber-800">Top Contributor 🏆</span>'
         : "";
@@ -605,10 +712,16 @@
         : `<a href="${escapeHtml(getGoogleReviewsUrl(gym))}" target="_blank" rel="noopener noreferrer" class="grid h-44 place-items-center bg-gradient-to-br from-blue-950 to-slate-800 p-6 text-center transition hover:from-blue-900 hover:to-slate-700">
              <span><span class="block text-3xl" aria-hidden="true">📍</span><span class="mt-2 block text-sm font-black text-teal">Open location in Google Maps</span></span>
            </a>`;
+      const photoGallery = photos.length
+        ? `<div class="grid ${photos.length === 1 ? "grid-cols-1" : "grid-cols-2"} gap-1 border-t border-slate-700 bg-slate-950 p-1">
+             ${photos.map((photo, index) => `<img src="${escapeHtml(photo.dataUrl)}" alt="Photo ${index + 1} of ${escapeHtml(gym.name)} shared by a reviewer" class="h-36 w-full rounded-lg object-cover ${photos.length === 3 && index === 0 ? "col-span-2" : ""}" loading="lazy">`).join("")}
+           </div>`
+        : "";
 
       return `
         <article class="overflow-hidden rounded-3xl border border-slate-700 bg-slate-900 shadow-card">
           ${map}
+          ${photoGallery}
           <div class="p-5">
             <div class="flex items-start justify-between gap-3">
               <div class="min-w-0">
@@ -671,6 +784,9 @@
 
     function openGymForm() {
       elements.gymForm.reset();
+      selectedGymPhotos = [];
+      renderGymPhotoPreview();
+      setGymPhotoStatus("");
       if (placesAutocomplete) placesAutocomplete.value = "";
       showInlineError(elements.gymFormError, "");
       elements.mapsNotice.classList.toggle("hidden", HAS_GOOGLE_MAPS_KEY);
@@ -771,6 +887,7 @@
         placeId: document.getElementById("gymPlaceId").value,
         latitude: Number(document.getElementById("gymLatitude").value) || null,
         longitude: Number(document.getElementById("gymLongitude").value) || null,
+        photos: selectedGymPhotos.map(photo => ({ dataUrl: photo.dataUrl })),
         authorId: user.id,
         authorEmail: user.email,
         createdAt: new Date().toISOString()
@@ -793,6 +910,7 @@
     elements.authButton.addEventListener("click", () => getCurrentUser() ? logOut() : openAuthModal("login"));
     elements.addGymButton.addEventListener("click", () => requireAuth(openGymForm));
     elements.gymForm.addEventListener("submit", handleGymSubmit);
+    elements.gymPhotos.addEventListener("change", handleGymPhotos);
     elements.searchInput.addEventListener("input", renderGyms);
     elements.ratingFilter.addEventListener("change", renderGyms);
     elements.sortFilter.addEventListener("change", renderGyms);
@@ -803,6 +921,13 @@
 
       const voteButton = event.target.closest("[data-vote]");
       if (voteButton) handleVote(voteButton.dataset.gymId, Number(voteButton.dataset.vote));
+
+      const removePhotoButton = event.target.closest("[data-remove-gym-photo]");
+      if (removePhotoButton) {
+        selectedGymPhotos.splice(Number(removePhotoButton.dataset.removeGymPhoto), 1);
+        renderGymPhotoPreview();
+        setGymPhotoStatus(selectedGymPhotos.length ? `${selectedGymPhotos.length} of 3 photos ready.` : "");
+      }
     });
 
     document.addEventListener("keydown", event => {
