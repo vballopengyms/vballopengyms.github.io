@@ -265,7 +265,7 @@
             <label for="gymReview" class="text-sm font-bold">Parent Vibe Check</label>
             <div class="flex flex-wrap gap-2">
               <button id="gymDictate" type="button" class="hidden rounded-lg border border-slate-600 bg-slate-800 px-3 py-1.5 text-xs font-black text-slate-200 transition hover:border-teal hover:text-teal" aria-pressed="false">🎙 Dictate</button>
-              <button id="gymSmoothReview" type="button" class="rounded-lg border border-teal/40 bg-teal/10 px-3 py-1.5 text-xs font-black text-teal transition hover:bg-teal/20 disabled:cursor-wait disabled:opacity-60">✨ Smooth with AI</button>
+              <button id="gymSmoothReview" type="button" class="rounded-lg border border-teal/40 bg-teal/10 px-3 py-1.5 text-xs font-black text-teal transition hover:bg-teal/20 disabled:cursor-wait disabled:opacity-60">✨ Smooth wording</button>
             </div>
           </div>
           <textarea id="gymReview" required minlength="20" maxlength="1200" rows="5" placeholder="How was the lighting, supervision, court setup, skill level, parking, and overall environment?" class="w-full resize-y rounded-xl border border-slate-700 bg-slate-800 px-4 py-3 text-sm leading-6 text-slate-100 placeholder:text-slate-500 outline-none transition focus:border-teal focus:ring-4 focus:ring-teal/10"></textarea>
@@ -832,6 +832,7 @@
     function locallySmoothReview(value) {
       const cleaned = value
         .replace(/\b(?:um+|uh+|erm+)\b[,.]?\s*/gi, "")
+        .replace(/\bi\b/g, "I")
         .replace(/\s+([,.!?])/g, "$1")
         .replace(/([,.!?])(?=[A-Za-z])/g, "$1 ")
         .replace(/\s{2,}/g, " ")
@@ -859,7 +860,9 @@
 
       elements.gymSmoothReview.disabled = true;
       elements.gymSmoothReview.textContent = "Smoothing...";
-      elements.gymReviewStatus.textContent = "Keeping your facts and tone intact.";
+      elements.gymReviewStatus.textContent = window.LanguageModel
+        ? "Keeping your facts and tone intact."
+        : "Cleaning up punctuation and filler words.";
       let session = null;
 
       try {
@@ -881,10 +884,10 @@
         elements.gymReviewStatus.textContent = "Smoothed on this device. Please review before publishing.";
       } catch (error) {
         elements.gymReview.value = locallySmoothReview(original);
-        elements.gymReviewStatus.textContent = "AI was unavailable, so punctuation was cleaned locally.";
+        elements.gymReviewStatus.textContent = "Wording cleaned up on this device. Please review before publishing.";
       } finally {
         elements.gymSmoothReview.disabled = false;
-        elements.gymSmoothReview.textContent = "✨ Smooth with AI";
+        elements.gymSmoothReview.textContent = "✨ Smooth wording";
         elements.gymReview.focus();
         session?.destroy();
       }
