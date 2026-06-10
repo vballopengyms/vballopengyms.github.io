@@ -205,7 +205,7 @@
       </div>
 
       <div id="mapsNotice" class="mt-5 hidden rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-900">
-        Add your Google Maps API key in <code class="rounded bg-amber-100 px-1 font-bold">GOOGLE_MAPS_API_KEY</code> to enable live facility autocomplete and map embeds.
+        Google Places is currently unavailable. You can still enter the gym details manually.
       </div>
 
       <form id="gymForm" class="mt-6 space-y-5">
@@ -263,6 +263,10 @@
   <script>
     // Add a browser-restricted key with Maps JavaScript API and Places API enabled.
     const GOOGLE_MAPS_API_KEY = "AIzaSyAcj3kBQrjNdmjv3H_RbF1rtDAi6Fw533M";
+
+    const HAS_GOOGLE_MAPS_KEY = Boolean(
+      GOOGLE_MAPS_API_KEY.trim() && GOOGLE_MAPS_API_KEY.trim() !== "YOUR_KEY_HERE"
+    );
 
     const STORAGE_KEYS = {
       gyms: "vball-open-gyms-reviews-v2",
@@ -551,7 +555,7 @@
     }
 
     function getMapUrl(gym) {
-      if (GOOGLE_MAPS_API_KEY === "YOUR_KEY_HERE") return "";
+      if (!HAS_GOOGLE_MAPS_KEY) return "";
       const query = gym.placeId
         ? `place_id:${gym.placeId}`
         : `${gym.name}, ${gym.address}, ${gym.city}`;
@@ -669,7 +673,7 @@
       elements.gymForm.reset();
       if (placesAutocomplete) placesAutocomplete.value = "";
       showInlineError(elements.gymFormError, "");
-      elements.mapsNotice.classList.toggle("hidden", GOOGLE_MAPS_API_KEY !== "YOUR_KEY_HERE");
+      elements.mapsNotice.classList.toggle("hidden", HAS_GOOGLE_MAPS_KEY);
       showModal(elements.gymModal);
       setTimeout(() => document.getElementById("gymName").focus(), 50);
     }
@@ -723,7 +727,7 @@
     }
 
     function loadGoogleMaps() {
-      if (GOOGLE_MAPS_API_KEY === "YOUR_KEY_HERE") return;
+      if (!HAS_GOOGLE_MAPS_KEY) return;
       window.initializePlacesAutocomplete = initializePlacesAutocomplete;
       const script = document.createElement("script");
       script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(GOOGLE_MAPS_API_KEY)}&loading=async&libraries=places&v=weekly&callback=initializePlacesAutocomplete`;
@@ -745,7 +749,7 @@
         return;
       }
 
-      if (GOOGLE_MAPS_API_KEY !== "YOUR_KEY_HERE" && !document.getElementById("gymPlaceId").value) {
+      if (HAS_GOOGLE_MAPS_KEY && !document.getElementById("gymPlaceId").value) {
         showInlineError(elements.gymFormError, "Choose a gym from the Google Places suggestions so its location can be verified.");
         return;
       }
