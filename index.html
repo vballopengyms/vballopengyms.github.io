@@ -239,11 +239,24 @@
               <option value="1">★☆☆☆☆ Would avoid</option>
             </select>
           </label>
-          <label class="block sm:col-span-2">
-            <span class="mb-1.5 block text-sm font-bold">Helpful Link <span class="font-medium text-slate-400">(optional)</span></span>
-            <input id="gymHelpfulLink" type="url" maxlength="500" inputmode="url" placeholder="https://example.com/open-gym-schedule" class="h-12 w-full rounded-xl border border-slate-700 bg-slate-800 px-4 text-sm text-slate-100 placeholder:text-slate-500 outline-none transition focus:border-teal focus:ring-4 focus:ring-teal/10">
-            <span class="mt-1.5 block text-xs text-slate-400">Share the gym website, registration page, schedule, or another useful resource.</span>
-          </label>
+          <fieldset class="sm:col-span-2">
+            <legend class="mb-1.5 text-sm font-bold">Helpful Links <span class="font-medium text-slate-400">(optional)</span></legend>
+            <div class="grid gap-3 sm:grid-cols-3">
+              <label class="block">
+                <span class="sr-only">Helpful Link 1</span>
+                <input id="gymHelpfulLink1" type="url" maxlength="500" inputmode="url" placeholder="Gym website" class="h-12 w-full rounded-xl border border-slate-700 bg-slate-800 px-4 text-sm text-slate-100 placeholder:text-slate-500 outline-none transition focus:border-teal focus:ring-4 focus:ring-teal/10">
+              </label>
+              <label class="block">
+                <span class="sr-only">Helpful Link 2</span>
+                <input id="gymHelpfulLink2" type="url" maxlength="500" inputmode="url" placeholder="Registration page" class="h-12 w-full rounded-xl border border-slate-700 bg-slate-800 px-4 text-sm text-slate-100 placeholder:text-slate-500 outline-none transition focus:border-teal focus:ring-4 focus:ring-teal/10">
+              </label>
+              <label class="block">
+                <span class="sr-only">Helpful Link 3</span>
+                <input id="gymHelpfulLink3" type="url" maxlength="500" inputmode="url" placeholder="Open-gym schedule" class="h-12 w-full rounded-xl border border-slate-700 bg-slate-800 px-4 text-sm text-slate-100 placeholder:text-slate-500 outline-none transition focus:border-teal focus:ring-4 focus:ring-teal/10">
+              </label>
+            </div>
+            <span class="mt-1.5 block text-xs text-slate-400">Share up to 3 useful resources beginning with http:// or https://.</span>
+          </fieldset>
         </div>
 
         <div class="rounded-2xl border border-dashed border-slate-600 bg-slate-800/60 p-4">
@@ -708,6 +721,11 @@
       }
     }
 
+    function getHelpfulLinks(gym) {
+      const values = Array.isArray(gym.helpfulLinks) ? gym.helpfulLinks : [gym.helpfulLink];
+      return values.map(getHelpfulLink).filter(Boolean).slice(0, 3);
+    }
+
     function renderGyms() {
       const query = elements.searchInput.value.trim().toLowerCase();
       const minimumRating = elements.ratingFilter.value === "all" ? 0 : Number(elements.ratingFilter.value);
@@ -733,7 +751,7 @@
       const score = getReviewScore(gym.id);
       const userVote = currentUserId ? Number(votes[gym.id]?.[currentUserId] || 0) : 0;
       const mapUrl = getMapUrl(gym);
-      const helpfulLink = getHelpfulLink(gym.helpfulLink);
+      const helpfulLinks = getHelpfulLinks(gym);
       const photos = Array.isArray(gym.photos) ? gym.photos.filter(photo => photo?.dataUrl) : [];
       const adminDeleteButton = isAdmin()
         ? `<button type="button" data-delete-review="${escapeHtml(gym.id)}" class="rounded-xl border border-rose-500/50 bg-rose-950/40 px-3 py-2.5 text-center text-xs font-black text-rose-300 transition hover:bg-rose-900/70 hover:text-white">Delete review</button>`
@@ -787,8 +805,8 @@
               </div>
             </div>
 
-            <div class="mt-4 grid ${helpfulLink || adminDeleteButton ? "grid-cols-1 sm:grid-cols-3" : "grid-cols-2"} gap-2">
-              ${helpfulLink ? `<a href="${escapeHtml(helpfulLink)}" target="_blank" rel="noopener noreferrer" class="rounded-xl border border-teal/40 bg-teal/10 px-3 py-2.5 text-center text-xs font-black text-teal transition hover:bg-teal/20">Helpful Link ↗</a>` : ""}
+            <div class="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
+              ${helpfulLinks.map((helpfulLink, index) => `<a href="${escapeHtml(helpfulLink)}" target="_blank" rel="noopener noreferrer" class="rounded-xl border border-teal/40 bg-teal/10 px-3 py-2.5 text-center text-xs font-black text-teal transition hover:bg-teal/20">Helpful Link ${index + 1} ↗</a>`).join("")}
               <a href="${escapeHtml(getGoogleReviewsUrl(gym))}" target="_blank" rel="noopener noreferrer" class="rounded-xl border border-slate-700 px-3 py-2.5 text-center text-xs font-black text-slate-200 transition hover:border-teal hover:text-teal">Google Maps & Reviews ↗</a>
               <a href="${escapeHtml(getYelpUrl(gym))}" target="_blank" rel="noopener noreferrer" class="rounded-xl border border-slate-700 px-3 py-2.5 text-center text-xs font-black text-slate-200 transition hover:border-coral hover:text-coral">Search on Yelp ↗</a>
               ${adminDeleteButton}
@@ -1060,14 +1078,15 @@
       }
 
       const review = document.getElementById("gymReview").value.trim();
-      const helpfulLinkInput = document.getElementById("gymHelpfulLink").value.trim();
-      const helpfulLink = getHelpfulLink(helpfulLinkInput);
+      const helpfulLinkInputs = [1, 2, 3].map(index => document.getElementById(`gymHelpfulLink${index}`).value.trim());
+      const invalidHelpfulLinkIndex = helpfulLinkInputs.findIndex(value => value && !getHelpfulLink(value));
+      const helpfulLinks = helpfulLinkInputs.map(getHelpfulLink).filter(Boolean);
       if (review.length < 20) {
         showInlineError(elements.gymFormError, "Please share at least 20 characters of useful firsthand detail.");
         return;
       }
-      if (helpfulLinkInput && !helpfulLink) {
-        showInlineError(elements.gymFormError, "Please enter a complete helpful link beginning with http:// or https://.");
+      if (invalidHelpfulLinkIndex !== -1) {
+        showInlineError(elements.gymFormError, `Please enter a complete URL for Helpful Link ${invalidHelpfulLinkIndex + 1}, beginning with http:// or https://.`);
         return;
       }
 
@@ -1079,7 +1098,7 @@
         cost: document.getElementById("gymCost").value.trim(),
         rating: Number(document.getElementById("gymRating").value),
         review,
-        helpfulLink,
+        helpfulLinks,
         placeId: document.getElementById("gymPlaceId").value,
         latitude: Number(document.getElementById("gymLatitude").value) || null,
         longitude: Number(document.getElementById("gymLongitude").value) || null,
