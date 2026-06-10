@@ -1,354 +1,819 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VBall Open Gyms - Parent Vetting Tracker</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-      :root {
-        color-scheme: dark;
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Community-vetted youth volleyball open gyms, reviewed by local parents.">
+  <title>VBall Open Gyms | Parent Vibe Checks</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            ink: "#172033",
+            cream: "#fffaf1",
+            coral: "#f2634a",
+            teal: "#087f78"
+          },
+          boxShadow: {
+            card: "0 18px 50px -24px rgba(23, 32, 51, 0.35)"
+          }
+        }
       }
-      .autocomplete-container {
-        position: relative;
-        width: 100%;
+    };
+  </script>
+  <style>
+    body {
+      background:
+        radial-gradient(circle at 12% 8%, rgba(242, 99, 74, 0.11), transparent 26rem),
+        radial-gradient(circle at 92% 18%, rgba(8, 127, 120, 0.10), transparent 24rem),
+        #fffaf1;
+    }
+    .modal-backdrop {
+      background: rgba(23, 32, 51, 0.72);
+      backdrop-filter: blur(8px);
+    }
+    .modal-panel {
+      animation: modal-in 180ms ease-out;
+    }
+    .pac-container {
+      z-index: 10000 !important;
+      border: 0;
+      border-radius: 0.75rem;
+      margin-top: 0.35rem;
+      box-shadow: 0 18px 45px rgba(23, 32, 51, 0.2);
+      font-family: ui-sans-serif, system-ui, sans-serif;
+    }
+    .pac-item {
+      padding: 0.65rem 0.75rem;
+      cursor: pointer;
+    }
+    .pac-item:hover {
+      background: #f8fafc;
+    }
+    #placesAutocompleteHost gmp-place-autocomplete {
+      width: 100%;
+      color-scheme: light;
+    }
+    #userSummary[data-authenticated="false"] {
+      display: none;
+    }
+    @media (max-width: 639px) {
+      #userSummary {
+        display: none;
       }
-      .autocomplete-results {
-        position: absolute;
-        top: 100%;
-        left: 0;
-        right: 0;
-        background: #0f172a;
-        border: 1px solid #475569;
-        border-top: none;
-        border-radius: 0 0 6px 6px;
-        max-height: 220px;
-        overflow-y: auto;
-        z-index: 9999;
-        box-shadow: 0 16px 30px -12px rgba(0, 0, 0, 0.8);
-      }
-      .autocomplete-item {
-        padding: 10px 12px;
-        cursor: pointer;
-        font-size: 14px;
-        color: #cbd5e1;
-        border-bottom: 1px solid #1e293b;
-        text-align: left;
-      }
-      .autocomplete-item:hover {
-        background-color: #1e293b;
-      }
-      .autocomplete-item strong {
-        color: #f8fafc;
-        display: block;
-      }
-      .autocomplete-item span {
-        font-size: 12px;
-        color: #94a3b8;
-      }
-    </style>
+    }
+    @keyframes modal-in {
+      from { opacity: 0; transform: translateY(10px) scale(0.985); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+  </style>
 </head>
-<body class="bg-slate-950 text-slate-100 font-sans min-h-screen pb-24">
+<body class="min-h-screen font-sans text-ink antialiased">
+  <header class="sticky top-0 z-30 border-b border-slate-200/80 bg-cream/90 backdrop-blur-xl">
+    <div class="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">
+      <a href="#" class="flex w-full items-center gap-3 sm:w-auto" aria-label="VBall Open Gyms home">
+        <span class="grid h-11 w-11 place-items-center rounded-2xl bg-coral text-2xl shadow-lg shadow-coral/20" aria-hidden="true">🏐</span>
+        <span>
+          <span class="block text-lg font-black tracking-tight sm:text-xl">VBall Open Gyms</span>
+          <span class="hidden text-xs font-medium text-slate-500 sm:block">Parent-tested courts. Better gym days.</span>
+        </span>
+      </a>
 
-    <header class="bg-gradient-to-r from-slate-950 via-slate-900 to-indigo-950 text-white border-b border-slate-800 shadow-2xl py-6 px-4 mb-8">
-        <div class="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
-            <div>
-                <h1 class="text-2xl font-bold tracking-tight">🏐 VBall Open Gyms</h1>
-                <p class="text-slate-300 text-sm mt-1">Firsthand summer open gym scouting by parents, for parents.</p>
-            </div>
-            <div class="flex flex-wrap gap-2 w-full md:w-auto">
-                <select id="cityFilter" onchange="filterGyms()" class="bg-slate-800 text-slate-100 px-3 py-2 rounded-md shadow-lg text-sm border border-slate-700 focus:ring-2 focus:ring-indigo-400">
-                    <option value="all">All Cities</option>
-                    <option value="Orange">Orange</option>
-                    <option value="Santa Ana">Santa Ana</option>
-                </select>
-                <select id="ratingFilter" onchange="filterGyms()" class="bg-slate-800 text-slate-100 px-3 py-2 rounded-md shadow-lg text-sm border border-slate-700 focus:ring-2 focus:ring-indigo-400">
-                    <option value="all">All Safety Ratings</option>
-                    <option value="5">5 Stars (Extremely Safe)</option>
-                    <option value="4">4+ Stars (Very Comfortable)</option>
-                </select>
-            </div>
+      <div class="flex w-full items-center gap-2 sm:w-auto">
+        <div id="userSummary" data-authenticated="false" class="text-right">
+          <div class="flex items-center justify-end gap-1.5">
+            <span id="headerUserEmail" class="max-w-48 truncate text-sm font-bold"></span>
+            <span id="headerBadge" class="hidden rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-black uppercase text-amber-800">Top Contributor 🏆</span>
+          </div>
+          <p class="text-xs text-slate-500"><span id="headerKarma" class="font-bold text-teal">0</span> Karma</p>
         </div>
-    </header>
+        <button id="authButton" type="button" class="shrink-0 rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm font-bold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50">
+          Log in
+        </button>
+        <button id="addGymButton" type="button" class="min-w-0 flex-1 rounded-xl bg-coral px-3 py-2.5 text-sm font-black text-white shadow-lg shadow-coral/20 transition hover:-translate-y-0.5 hover:bg-[#df513b] sm:flex-none sm:px-4">
+          <span aria-hidden="true">＋</span> <span class="sm:hidden">Add Vibe Check</span><span class="hidden sm:inline">Add a New Gym Vibe Check</span>
+        </button>
+      </div>
+    </div>
+  </header>
 
-    <main class="max-w-6xl mx-auto px-4">
-        <div id="gymsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            </div>
-    </main>
+  <main>
+    <section class="mx-auto max-w-7xl px-4 pb-8 pt-12 sm:px-6 sm:pt-16 lg:px-8">
+      <div class="max-w-3xl">
+        <p class="mb-4 inline-flex rounded-full border border-teal/20 bg-teal/10 px-3 py-1 text-xs font-black uppercase tracking-[0.18em] text-teal">Built by volleyball families</p>
+        <h1 class="text-4xl font-black leading-[1.05] tracking-tight sm:text-6xl">Know the vibe before you walk into the gym.</h1>
+        <p class="mt-5 max-w-2xl text-base leading-7 text-slate-600 sm:text-lg">
+          Find candid parent notes on safety, supervision, cost, and court quality, then help the most reliable reviews rise to the top.
+        </p>
+      </div>
 
-    <section class="fixed bottom-0 left-0 right-0 bg-slate-900 border-t border-slate-700 shadow-2xl z-50 transition-all duration-300 max-h-[85vh] overflow-y-auto" id="adminSection">
-        <div class="bg-slate-950 text-white px-4 py-3 flex justify-between items-center cursor-pointer" onclick="toggleAdminPanel()">
-            <div class="flex items-center gap-2">
-                <span class="bg-rose-700 text-rose-50 text-xs uppercase px-2 py-0.5 rounded font-bold">Admin Panel</span>
-                <h2 class="font-semibold text-sm">Log New Court & Generate JSON Payload</h2>
-            </div>
-            <button id="toggleBtn" class="text-slate-400 hover:text-white font-bold text-lg">▲ Expand</button>
+      <div class="mt-9 grid gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-card sm:grid-cols-[1fr_220px]">
+        <label class="relative block">
+          <span class="sr-only">Search gyms</span>
+          <span class="pointer-events-none absolute inset-y-0 left-4 grid place-items-center text-slate-400" aria-hidden="true">⌕</span>
+          <input id="searchInput" type="search" placeholder="Search gym, city, or address" class="h-12 w-full rounded-xl border border-slate-200 bg-slate-50 pl-11 pr-4 text-sm font-medium outline-none transition focus:border-teal focus:bg-white focus:ring-4 focus:ring-teal/10">
+        </label>
+        <label>
+          <span class="sr-only">Filter by safety rating</span>
+          <select id="ratingFilter" class="h-12 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm font-bold outline-none transition focus:border-teal focus:bg-white focus:ring-4 focus:ring-teal/10">
+            <option value="all">All safety ratings</option>
+            <option value="5">5 stars only</option>
+            <option value="4">4 stars and up</option>
+            <option value="3">3 stars and up</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="mt-8 flex items-end justify-between gap-4">
+        <div>
+          <h2 class="text-2xl font-black tracking-tight">Latest vibe checks</h2>
+          <p id="resultCount" class="mt-1 text-sm text-slate-500"></p>
         </div>
-        
-        <div id="adminFormContainer" class="p-6 max-w-4xl mx-auto hidden">
-            <form id="gymForm" onsubmit="handleFormSubmit(event)" class="space-y-4">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-xs font-bold uppercase text-slate-300 mb-1">Gym Name (Type to Auto-Search)</label>
-                        <div class="autocomplete-container">
-                            <input type="text" id="gymName" required placeholder="e.g. Jerome Center, Orange Gym..." autocomplete="off" class="w-full bg-slate-800 text-slate-100 placeholder:text-slate-500 border border-slate-600 rounded px-3 py-2 text-sm focus:outline-indigo-400">
-                            <div id="autocompleteResults" class="autocomplete-results" style="display: none;"></div>
-                        </div>
-                    </div>
-                    <div>
-                        <label class="block text-xs font-bold uppercase text-slate-300 mb-1">City</label>
-                        <input type="text" id="gymCity" required placeholder="Auto-populates from search" class="w-full bg-slate-800 text-slate-100 placeholder:text-slate-500 border border-slate-600 rounded px-3 py-2 text-sm focus:outline-indigo-400">
-                    </div>
-                </div>
-                
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div>
-                        <label class="block text-xs font-bold uppercase text-slate-300 mb-1">Street Address</label>
-                        <input type="text" id="gymAddress" required placeholder="Auto-populates from search" class="w-full bg-slate-800 text-slate-100 placeholder:text-slate-500 border border-slate-600 rounded px-3 py-2 text-sm focus:outline-indigo-400">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-bold uppercase text-slate-300 mb-1">Cost / Drop-in Fee</label>
-                        <input type="text" id="gymCost" placeholder="e.g. $5 or Free" required class="w-full bg-slate-800 text-slate-100 placeholder:text-slate-500 border border-slate-600 rounded px-3 py-2 text-sm focus:outline-indigo-400">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-bold uppercase text-slate-300 mb-1">Daughter Safety Rating (1-5 Stars)</label>
-                        <select id="gymRating" class="w-full bg-slate-800 text-slate-100 border border-slate-600 rounded px-3 py-2 text-sm focus:outline-indigo-400">
-                            <option value="5">⭐⭐⭐⭐⭐ - Fully Comfortable Dropping Off</option>
-                            <option value="4">⭐⭐⭐⭐ - Good Environment, Well Supervised</option>
-                            <option value="3">⭐⭐⭐ - Decent, but Stay and Watch</option>
-                            <option value="2">⭐⭐ - Poor Lighting / Rowdy Atmosphere</option>
-                            <option value="1">⭐ - Avoid entirely</option>
-                        </select>
-                    </div>
-                </div>
+        <select id="sortFilter" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold outline-none focus:border-teal focus:ring-4 focus:ring-teal/10">
+          <option value="newest">Newest</option>
+          <option value="reliable">Most reliable</option>
+          <option value="rating">Highest safety</option>
+        </select>
+      </div>
 
-                <div>
-                    <label class="block text-xs font-bold uppercase text-slate-300 mb-1">Media Files (Photos & Videos)</label>
-                    <input type="file" id="gymMedia" multiple accept="image/*,video/*" onchange="previewMedia(event)" class="w-full text-sm text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border file:border-slate-600 file:text-sm file:font-semibold file:bg-slate-800 file:text-indigo-300 hover:file:bg-slate-700">
-                    <div id="mediaPreviews" class="grid grid-cols-4 gap-2 mt-2"></div>
-                </div>
-
-                <div>
-                    <label class="block text-xs font-bold uppercase text-slate-300 mb-1">Parent Vibe Check (Your Raw Input)</label>
-                    <textarea id="rawNotes" rows="3" required placeholder="Type your honest feedback here. Vibe check, lighting, net height, court coaching environment..." class="w-full bg-slate-800 text-slate-100 placeholder:text-slate-500 border border-slate-600 rounded px-3 py-2 text-sm focus:outline-indigo-400"></textarea>
-                    <button type="button" onclick="simulateAIPolish()" class="mt-1 bg-violet-700 hover:bg-violet-600 text-white text-xs font-bold px-3 py-1.5 rounded transition">
-                        ✨ Simulate AI Proofread & Polish
-                    </button>
-                </div>
-
-                <div>
-                    <label class="block text-xs font-bold uppercase text-violet-300 mb-1 font-bold">AI Polished Output Preview</label>
-                    <textarea id="aiPolishedReview" rows="3" class="w-full bg-violet-950/60 border border-violet-800 rounded px-3 py-2 text-sm text-violet-100 focus:outline-violet-400"></textarea>
-                </div>
-
-                <div class="flex gap-2 pt-2">
-                    <button type="submit" class="bg-indigo-700 hover:bg-indigo-600 text-white font-bold px-4 py-2 rounded text-sm transition shadow">
-                        Add to Local View
-                    </button>
-                    <button type="button" onclick="exportDataJSON()" class="bg-emerald-700 hover:bg-emerald-600 text-white font-bold px-4 py-2 rounded text-sm transition shadow ml-auto">
-                        📥 Download Clean JSON Data Payload
-                    </button>
-                </div>
-            </form>
-        </div>
+      <div id="gymsGrid" class="mt-5 grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3"></div>
+      <div id="emptyState" class="mt-5 hidden rounded-3xl border border-dashed border-slate-300 bg-white/60 px-6 py-16 text-center">
+        <p class="text-4xl" aria-hidden="true">🏐</p>
+        <h3 class="mt-3 text-lg font-black">No matching vibe checks</h3>
+        <p class="mt-1 text-sm text-slate-500">Try a broader search or add the first review for this gym.</p>
+      </div>
     </section>
+  </main>
 
-    <script>
-        // Data Store Array
-        let gyms = [
-            {
-                id: 1,
-                name: "Example Community Gym",
-                city: "Orange",
-                address: "123 Court Side Way, Orange, CA",
-                cost: "$5 Drop-in",
-                rating: "5",
-                review: "Fantastic training facility. Bright LED lighting, solid tournament nets pulled taut, and excellent supervision. Felt 100% safe dropping my 12-year-old daughter off for 2 hours of solid game touches.",
-                media: []
-            }
-        ];
+  <footer class="border-t border-slate-200 bg-white/60">
+    <div class="mx-auto flex max-w-7xl flex-col gap-2 px-4 py-8 text-sm text-slate-500 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8">
+      <p>Community notes are personal experiences, not professional safety assessments.</p>
+      <p class="font-bold text-slate-600">VBall Open Gyms</p>
+    </div>
+  </footer>
 
-        let localMediaStrings = [];
+  <div id="authModal" class="modal-backdrop fixed inset-0 z-50 hidden items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="authTitle">
+    <div class="modal-panel w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl sm:p-8">
+      <div class="flex items-start justify-between gap-4">
+        <div>
+          <p class="text-xs font-black uppercase tracking-[0.18em] text-coral">Community account</p>
+          <h2 id="authTitle" class="mt-2 text-2xl font-black tracking-tight">Welcome back</h2>
+          <p id="authSubtitle" class="mt-1 text-sm leading-6 text-slate-500">Log in to share a vibe check or vote on a review.</p>
+        </div>
+        <button type="button" data-close-modal="authModal" class="grid h-9 w-9 place-items-center rounded-full bg-slate-100 text-xl text-slate-500 transition hover:bg-slate-200" aria-label="Close login modal">×</button>
+      </div>
 
-        function renderGyms() {
-            const grid = document.getElementById('gymsGrid');
-            grid.innerHTML = '';
-            
-            gyms.forEach(gym => {
-                let ratingStars = '⭐'.repeat(Number(gym.rating));
-                let mediaHTML = '';
-                
-                if(gym.media && gym.media.length > 0) {
-                    gym.media.forEach(src => {
-                        if(src.startsWith('data:video')) {
-                            mediaHTML += `<video src="${src}" controls class="w-full h-48 object-cover rounded mb-2"></video>`;
-                        } else {
-                            mediaHTML += `<img src="${src}" class="w-full h-48 object-cover rounded mb-2" />`;
-                        }
-                    });
-                } else {
-                    mediaHTML = `<div class="w-full h-48 bg-slate-800 rounded flex items-center justify-center text-slate-500 text-sm mb-2 border border-slate-700">No photos/videos logged yet</div>`;
-                }
+      <form id="authForm" class="mt-6 space-y-4">
+        <label class="block">
+          <span class="mb-1.5 block text-sm font-bold">Email address</span>
+          <input id="authEmail" type="email" required autocomplete="email" placeholder="parent@example.com" class="h-12 w-full rounded-xl border border-slate-300 px-4 text-sm outline-none transition focus:border-teal focus:ring-4 focus:ring-teal/10">
+        </label>
+        <label class="block">
+          <span class="mb-1.5 block text-sm font-bold">Password</span>
+          <input id="authPassword" type="password" required minlength="8" autocomplete="current-password" placeholder="At least 8 characters" class="h-12 w-full rounded-xl border border-slate-300 px-4 text-sm outline-none transition focus:border-teal focus:ring-4 focus:ring-teal/10">
+        </label>
+        <p id="authError" class="hidden rounded-xl bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700" role="alert"></p>
+        <button id="authSubmit" type="submit" class="h-12 w-full rounded-xl bg-ink text-sm font-black text-white shadow-lg transition hover:bg-slate-700">Log in</button>
+      </form>
 
-                grid.innerHTML += `
-                    <div class="bg-slate-900 rounded-xl shadow-2xl border border-slate-800 overflow-hidden flex flex-col">
-                        <div class="p-4 flex-1">
-                            <div class="flex justify-between items-start gap-2 mb-2">
-                                <h3 class="font-bold text-slate-50 text-lg leading-snug">${gym.name}</h3>
-                                <span class="bg-indigo-950 text-indigo-300 border border-indigo-800 font-semibold text-xs px-2 py-1 rounded whitespace-nowrap">${gym.city}</span>
-                            </div>
-                            <p class="text-xs text-slate-400 mb-3">📍 ${gym.address} • <span class="font-semibold text-slate-200">${gym.cost}</span></p>
-                            ${mediaHTML}
-                            <div class="mt-3 bg-amber-950/40 border border-amber-900 p-3 rounded-lg">
-                                <div class="text-amber-400 font-bold text-xs tracking-wide uppercase mb-1">Parent Vibe Check: ${ratingStars}</div>
-                                <p class="text-sm text-slate-300 italic">"${gym.review}"</p>
-                            </div>
-                        </div>
-                    </div>
-                `;
-            });
+      <div class="mt-5 border-t border-slate-200 pt-5 text-center text-sm text-slate-600">
+        <span id="authSwitchPrompt">New to the community?</span>
+        <button id="authModeSwitch" type="button" class="font-black text-teal hover:underline">Create an account</button>
+      </div>
+      <p class="mt-4 text-center text-xs leading-5 text-slate-400">Accounts and contributions are stored on this device in this static-site edition.</p>
+    </div>
+  </div>
+
+  <div id="gymModal" class="modal-backdrop fixed inset-0 z-50 hidden items-center justify-center overflow-y-auto p-4" role="dialog" aria-modal="true" aria-labelledby="gymModalTitle">
+    <div class="modal-panel my-auto w-full max-w-3xl rounded-3xl bg-white p-6 shadow-2xl sm:p-8">
+      <div class="flex items-start justify-between gap-4">
+        <div>
+          <p class="text-xs font-black uppercase tracking-[0.18em] text-coral">Help another family</p>
+          <h2 id="gymModalTitle" class="mt-2 text-2xl font-black tracking-tight">Add a New Gym Vibe Check</h2>
+          <p class="mt-1 text-sm text-slate-500">Share specific, firsthand details. Kind and candid wins.</p>
+        </div>
+        <button type="button" data-close-modal="gymModal" class="grid h-9 w-9 place-items-center rounded-full bg-slate-100 text-xl text-slate-500 transition hover:bg-slate-200" aria-label="Close gym form">×</button>
+      </div>
+
+      <div id="mapsNotice" class="mt-5 hidden rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-900">
+        Add your Google Maps API key in <code class="rounded bg-amber-100 px-1 font-bold">GOOGLE_MAPS_API_KEY</code> to enable live facility autocomplete and map embeds.
+      </div>
+
+      <form id="gymForm" class="mt-6 space-y-5">
+        <div class="grid gap-4 sm:grid-cols-2">
+          <label class="block sm:col-span-2">
+            <span class="mb-1.5 block text-sm font-bold">Gym Name</span>
+            <input id="gymName" type="text" required autocomplete="off" placeholder="Start typing a facility name..." class="h-12 w-full rounded-xl border border-slate-300 px-4 text-sm outline-none transition focus:border-teal focus:ring-4 focus:ring-teal/10">
+            <span id="placesAutocompleteHost" class="hidden min-h-12 w-full overflow-visible rounded-xl border border-slate-300 bg-white px-1"></span>
+            <span class="mt-1.5 block text-xs text-slate-400">Choose a Google suggestion to fill the address and city automatically.</span>
+          </label>
+          <label class="block">
+            <span class="mb-1.5 block text-sm font-bold">Street Address</span>
+            <input id="gymAddress" type="text" required placeholder="123 Main St" class="h-12 w-full rounded-xl border border-slate-300 px-4 text-sm outline-none transition focus:border-teal focus:ring-4 focus:ring-teal/10">
+          </label>
+          <label class="block">
+            <span class="mb-1.5 block text-sm font-bold">City</span>
+            <input id="gymCity" type="text" required placeholder="Orange" class="h-12 w-full rounded-xl border border-slate-300 px-4 text-sm outline-none transition focus:border-teal focus:ring-4 focus:ring-teal/10">
+          </label>
+          <label class="block">
+            <span class="mb-1.5 block text-sm font-bold">Cost / Drop-in Fee</span>
+            <input id="gymCost" type="text" required maxlength="60" placeholder="$5 drop-in or Free" class="h-12 w-full rounded-xl border border-slate-300 px-4 text-sm outline-none transition focus:border-teal focus:ring-4 focus:ring-teal/10">
+          </label>
+          <label class="block">
+            <span class="mb-1.5 block text-sm font-bold">Safety & Supervision</span>
+            <select id="gymRating" class="h-12 w-full rounded-xl border border-slate-300 bg-white px-4 text-sm outline-none transition focus:border-teal focus:ring-4 focus:ring-teal/10">
+              <option value="5">★★★★★ Fully comfortable</option>
+              <option value="4">★★★★☆ Good environment</option>
+              <option value="3">★★★☆☆ Stay and watch</option>
+              <option value="2">★★☆☆☆ Several concerns</option>
+              <option value="1">★☆☆☆☆ Would avoid</option>
+            </select>
+          </label>
+        </div>
+
+        <label class="block">
+          <span class="mb-1.5 block text-sm font-bold">Parent Vibe Check</span>
+          <textarea id="gymReview" required minlength="20" maxlength="1200" rows="5" placeholder="How was the lighting, supervision, court setup, skill level, parking, and overall environment?" class="w-full resize-y rounded-xl border border-slate-300 px-4 py-3 text-sm leading-6 outline-none transition focus:border-teal focus:ring-4 focus:ring-teal/10"></textarea>
+          <span class="mt-1.5 block text-xs text-slate-400">Please avoid sharing children's names or other identifying information.</span>
+        </label>
+
+        <input id="gymPlaceId" type="hidden">
+        <input id="gymLatitude" type="hidden">
+        <input id="gymLongitude" type="hidden">
+        <p id="gymFormError" class="hidden rounded-xl bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700" role="alert"></p>
+        <div class="flex flex-col-reverse gap-3 pt-1 sm:flex-row sm:justify-end">
+          <button type="button" data-close-modal="gymModal" class="h-12 rounded-xl border border-slate-300 px-5 text-sm font-bold text-slate-700 transition hover:bg-slate-50">Cancel</button>
+          <button type="submit" class="h-12 rounded-xl bg-coral px-6 text-sm font-black text-white shadow-lg shadow-coral/20 transition hover:bg-[#df513b]">Publish Vibe Check</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="toast" class="pointer-events-none fixed bottom-5 left-1/2 z-[60] hidden -translate-x-1/2 rounded-xl bg-ink px-4 py-3 text-sm font-bold text-white shadow-2xl" role="status"></div>
+
+  <script>
+    // Add a browser-restricted key with Maps JavaScript API and Places API enabled.
+    const GOOGLE_MAPS_API_KEY = "YOUR_KEY_HERE";
+
+    const STORAGE_KEYS = {
+      gyms: "vball-open-gyms-reviews-v2",
+      users: "vball-open-gyms-users-v2",
+      votes: "vball-open-gyms-votes-v2",
+      session: "vball-open-gyms-session-v2"
+    };
+
+    const seedGyms = [
+      {
+        id: "welcome-review",
+        name: "Example Community Gym",
+        city: "Orange",
+        address: "123 Court Side Way",
+        cost: "$5 drop-in",
+        rating: 5,
+        review: "Bright lighting, well-maintained tournament nets, and attentive supervision. Parking was easy and the check-in process felt organized.",
+        placeId: "",
+        latitude: null,
+        longitude: null,
+        authorId: "community",
+        authorEmail: "VBall Open Gyms",
+        createdAt: "2026-06-01T12:00:00.000Z"
+      }
+    ];
+
+    let gyms = readStorage(STORAGE_KEYS.gyms, seedGyms);
+    let users = readStorage(STORAGE_KEYS.users, {});
+    let votes = readStorage(STORAGE_KEYS.votes, {});
+    let currentUserId = sessionStorage.getItem(STORAGE_KEYS.session) || "";
+    let authMode = "login";
+    let pendingAction = null;
+    let placesAutocomplete = null;
+    let toastTimer = null;
+
+    const elements = {
+      gymsGrid: document.getElementById("gymsGrid"),
+      emptyState: document.getElementById("emptyState"),
+      resultCount: document.getElementById("resultCount"),
+      searchInput: document.getElementById("searchInput"),
+      ratingFilter: document.getElementById("ratingFilter"),
+      sortFilter: document.getElementById("sortFilter"),
+      authModal: document.getElementById("authModal"),
+      gymModal: document.getElementById("gymModal"),
+      authForm: document.getElementById("authForm"),
+      authTitle: document.getElementById("authTitle"),
+      authSubtitle: document.getElementById("authSubtitle"),
+      authEmail: document.getElementById("authEmail"),
+      authPassword: document.getElementById("authPassword"),
+      authSubmit: document.getElementById("authSubmit"),
+      authError: document.getElementById("authError"),
+      authSwitchPrompt: document.getElementById("authSwitchPrompt"),
+      authModeSwitch: document.getElementById("authModeSwitch"),
+      authButton: document.getElementById("authButton"),
+      addGymButton: document.getElementById("addGymButton"),
+      userSummary: document.getElementById("userSummary"),
+      headerUserEmail: document.getElementById("headerUserEmail"),
+      headerKarma: document.getElementById("headerKarma"),
+      headerBadge: document.getElementById("headerBadge"),
+      gymForm: document.getElementById("gymForm"),
+      gymFormError: document.getElementById("gymFormError"),
+      mapsNotice: document.getElementById("mapsNotice"),
+      toast: document.getElementById("toast")
+    };
+
+    function readStorage(key, fallback) {
+      try {
+        const value = localStorage.getItem(key);
+        return value ? JSON.parse(value) : structuredClone(fallback);
+      } catch (error) {
+        console.warn(`Unable to read ${key}`, error);
+        return structuredClone(fallback);
+      }
+    }
+
+    function writeStorage(key, value) {
+      try {
+        localStorage.setItem(key, JSON.stringify(value));
+        return true;
+      } catch (error) {
+        console.error(`Unable to save ${key}`, error);
+        showToast("Storage is full. Your latest change could not be saved.");
+        return false;
+      }
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    function normalizeEmail(email) {
+      return email.trim().toLowerCase();
+    }
+
+    function bytesToBase64(bytes) {
+      return btoa(String.fromCharCode(...bytes));
+    }
+
+    function base64ToBytes(value) {
+      return Uint8Array.from(atob(value), character => character.charCodeAt(0));
+    }
+
+    async function hashPassword(password, salt) {
+      const passwordKey = await crypto.subtle.importKey(
+        "raw",
+        new TextEncoder().encode(password),
+        "PBKDF2",
+        false,
+        ["deriveBits"]
+      );
+      const bits = await crypto.subtle.deriveBits(
+        { name: "PBKDF2", hash: "SHA-256", salt, iterations: 210000 },
+        passwordKey,
+        256
+      );
+      return bytesToBase64(new Uint8Array(bits));
+    }
+
+    async function idFromEmail(email) {
+      const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(email));
+      return bytesToBase64(new Uint8Array(digest)).replaceAll(/[+/=]/g, "").slice(0, 24);
+    }
+
+    function getCurrentUser() {
+      return currentUserId ? users[currentUserId] || null : null;
+    }
+
+    function getReviewScore(gymId) {
+      return Object.values(votes[gymId] || {}).reduce((total, vote) => total + Number(vote), 0);
+    }
+
+    function getUserKarma(userId) {
+      return gyms
+        .filter(gym => gym.authorId === userId)
+        .reduce((total, gym) => total + getReviewScore(gym.id), 0);
+    }
+
+    function authorHasBadge(userId) {
+      return userId && userId !== "community" && getUserKarma(userId) >= 10;
+    }
+
+    function formatDate(value) {
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return "";
+      return new Intl.DateTimeFormat("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric"
+      }).format(date);
+    }
+
+    function showModal(element) {
+      element.classList.remove("hidden");
+      element.classList.add("flex");
+      document.body.classList.add("overflow-hidden");
+    }
+
+    function closeModal(element) {
+      element.classList.add("hidden");
+      element.classList.remove("flex");
+      if (elements.authModal.classList.contains("hidden") && elements.gymModal.classList.contains("hidden")) {
+        document.body.classList.remove("overflow-hidden");
+      }
+    }
+
+    function showToast(message) {
+      clearTimeout(toastTimer);
+      elements.toast.textContent = message;
+      elements.toast.classList.remove("hidden");
+      toastTimer = setTimeout(() => elements.toast.classList.add("hidden"), 2800);
+    }
+
+    function showInlineError(element, message) {
+      element.textContent = message;
+      element.classList.toggle("hidden", !message);
+    }
+
+    function requireAuth(action) {
+      if (getCurrentUser()) {
+        action();
+        return;
+      }
+      pendingAction = action;
+      openAuthModal("login");
+    }
+
+    function openAuthModal(mode = "login") {
+      setAuthMode(mode);
+      elements.authForm.reset();
+      showInlineError(elements.authError, "");
+      showModal(elements.authModal);
+      setTimeout(() => elements.authEmail.focus(), 50);
+    }
+
+    function setAuthMode(mode) {
+      authMode = mode;
+      const isLogin = mode === "login";
+      elements.authTitle.textContent = isLogin ? "Welcome back" : "Create your account";
+      elements.authSubtitle.textContent = isLogin
+        ? "Log in to share a vibe check or vote on a review."
+        : "Join the parent community and start contributing.";
+      elements.authSubmit.textContent = isLogin ? "Log in" : "Create account";
+      elements.authSwitchPrompt.textContent = isLogin ? "New to the community? " : "Already have an account? ";
+      elements.authModeSwitch.textContent = isLogin ? "Create an account" : "Log in";
+      elements.authPassword.autocomplete = isLogin ? "current-password" : "new-password";
+      showInlineError(elements.authError, "");
+    }
+
+    async function handleAuthSubmit(event) {
+      event.preventDefault();
+      const email = normalizeEmail(elements.authEmail.value);
+      const password = elements.authPassword.value;
+
+      if (!email || password.length < 8) {
+        showInlineError(elements.authError, "Use a valid email and a password with at least 8 characters.");
+        return;
+      }
+
+      elements.authSubmit.disabled = true;
+      elements.authSubmit.textContent = authMode === "login" ? "Logging in..." : "Creating account...";
+
+      try {
+        const userId = await idFromEmail(email);
+        if (authMode === "signup") {
+          if (users[userId]) throw new Error("An account with that email already exists.");
+          const salt = crypto.getRandomValues(new Uint8Array(16));
+          users[userId] = {
+            id: userId,
+            email,
+            salt: bytesToBase64(salt),
+            passwordHash: await hashPassword(password, salt),
+            createdAt: new Date().toISOString()
+          };
+          if (!writeStorage(STORAGE_KEYS.users, users)) {
+            delete users[userId];
+            throw new Error("Your account could not be saved on this device.");
+          }
+        } else {
+          const user = users[userId];
+          if (!user) throw new Error("No account was found for that email.");
+          const candidateHash = await hashPassword(password, base64ToBytes(user.salt));
+          if (candidateHash !== user.passwordHash) throw new Error("That password is incorrect.");
         }
 
-        function toggleAdminPanel() {
-            const form = document.getElementById('adminFormContainer');
-            const btn = document.getElementById('toggleBtn');
-            if(form.classList.contains('hidden')) {
-                form.classList.remove('hidden');
-                btn.innerText = '▼ Collapse';
-            } else {
-                form.classList.add('hidden');
-                btn.innerText = '▲ Expand';
-            }
-        }
+        currentUserId = userId;
+        sessionStorage.setItem(STORAGE_KEYS.session, currentUserId);
+        closeModal(elements.authModal);
+        updateUserUI();
+        showToast(authMode === "signup" ? "Account created. Welcome!" : "You are logged in.");
 
-        function previewMedia(event) {
-            const files = event.target.files;
-            const container = document.getElementById('mediaPreviews');
-            container.innerHTML = '';
-            localMediaStrings = [];
+        const action = pendingAction;
+        pendingAction = null;
+        if (action) action();
+      } catch (error) {
+        showInlineError(elements.authError, error.message || "Authentication failed. Please try again.");
+      } finally {
+        elements.authSubmit.disabled = false;
+        elements.authSubmit.textContent = authMode === "login" ? "Log in" : "Create account";
+      }
+    }
 
-            Array.from(files).forEach(file => {
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    localMediaStrings.push(e.target.result);
-                    if(file.type.startsWith('video/')) {
-                        container.innerHTML += `<video src="${e.target.result}" class="w-full h-16 object-cover rounded border border-slate-600"></video>`;
-                    } else {
-                        container.innerHTML += `<img src="${e.target.result}" class="w-full h-16 object-cover rounded border border-slate-600" />`;
-                    }
-                }
-                reader.readAsDataURL(file);
-            });
-        }
+    function logOut() {
+      currentUserId = "";
+      pendingAction = null;
+      sessionStorage.removeItem(STORAGE_KEYS.session);
+      updateUserUI();
+      renderGyms();
+      showToast("You are logged out.");
+    }
 
-        function simulateAIPolish() {
-            const raw = document.getElementById('rawNotes').value;
-            if(!raw) return alert('Type something in the notes first!');
-            let cleaned = raw.replace(/(?:\r\n|\r|\n)/g, ' ').trim();
-            cleaned = cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
-            document.getElementById('aiPolishedReview').value = `[AI Verified Cleanup]: ${cleaned}`;
-        }
+    function updateUserUI() {
+      const user = getCurrentUser();
+      elements.authButton.textContent = user ? "Log out" : "Log in";
+      elements.userSummary.dataset.authenticated = String(Boolean(user));
+      if (!user) return;
 
-        function handleFormSubmit(event) {
-            event.preventDefault();
-            const newGym = {
-                id: Date.now(),
-                name: document.getElementById('gymName').value,
-                city: document.getElementById('gymCity').value,
-                address: document.getElementById('gymAddress').value,
-                cost: document.getElementById('gymCost').value,
-                rating: document.getElementById('gymRating').value,
-                review: document.getElementById('aiPolishedReview').value || document.getElementById('rawNotes').value,
-                media: [...localMediaStrings]
-            };
+      const karma = getUserKarma(user.id);
+      elements.headerUserEmail.textContent = user.email;
+      elements.headerKarma.textContent = String(karma);
+      elements.headerBadge.classList.toggle("hidden", karma < 10);
+    }
 
-            gyms.push(newGym);
-            renderGyms();
-            document.getElementById('gymForm').reset();
-            document.getElementById('mediaPreviews').innerHTML = '';
-            alert('Added locally! Expand admin below to export your data array permanently when ready.');
-        }
+    function getMapUrl(gym) {
+      if (GOOGLE_MAPS_API_KEY === "YOUR_KEY_HERE") return "";
+      const query = gym.placeId
+        ? `place_id:${gym.placeId}`
+        : `${gym.name}, ${gym.address}, ${gym.city}`;
+      return `https://www.google.com/maps/embed/v1/place?key=${encodeURIComponent(GOOGLE_MAPS_API_KEY)}&q=${encodeURIComponent(query)}`;
+    }
 
-        function filterGyms() {
-            alert('Filters active on current dataset.');
-        }
+    function getGoogleReviewsUrl(gym) {
+      const query = `${gym.name}, ${gym.address}, ${gym.city}`;
+      const placeParam = gym.placeId ? `&query_place_id=${encodeURIComponent(gym.placeId)}` : "";
+      return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}${placeParam}`;
+    }
 
-        function exportDataJSON() {
-            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(gyms, null, 2));
-            const downloadAnchor = document.createElement('a');
-            downloadAnchor.setAttribute("href", dataStr);
-            downloadAnchor.setAttribute("download", "gyms.json");
-            document.body.appendChild(downloadAnchor);
-            downloadAnchor.click();
-            downloadAnchor.remove();
-        }
+    function getYelpUrl(gym) {
+      return `https://www.yelp.com/search?find_desc=${encodeURIComponent(gym.name)}&find_loc=${encodeURIComponent(gym.city)}`;
+    }
 
-        // --- Photon OpenStreetMap Map Autocomplete Engine ---
-        const gymInput = document.getElementById('gymName');
-        const resultsContainer = document.getElementById('autocompleteResults');
-        const cityInput = document.getElementById('gymCity');
-        const addressInput = document.getElementById('gymAddress');
-        let searchTimeout = null;
+    function renderGyms() {
+      const query = elements.searchInput.value.trim().toLowerCase();
+      const minimumRating = elements.ratingFilter.value === "all" ? 0 : Number(elements.ratingFilter.value);
+      const sort = elements.sortFilter.value;
 
-        gymInput.addEventListener('input', function() {
-            clearTimeout(searchTimeout);
-            const query = this.value.trim();
-            
-            if (query.length < 3) {
-                resultsContainer.style.display = 'none';
-                return;
-            }
-
-            // Calls API 300ms after user finishes typing to optimize speed
-            searchTimeout = setTimeout(() => {
-                // Biased coordinates centered near Orange/Santa Ana, CA to keep search local
-                fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=5&lat=33.7879&lon=-117.8531`)
-                    .then(response => response.json())
-                    .then(data => {
-                        resultsContainer.innerHTML = '';
-                        
-                        if (!data.features || data.features.length === 0) {
-                            resultsContainer.style.display = 'none';
-                            return;
-                        }
-
-                        data.features.forEach(feature => {
-                            const props = feature.properties;
-                            const name = props.name || '';
-                            const street = props.street ? `${props.housenumber || ''} ${props.street}` : '';
-                            const city = props.city || props.town || props.district || '';
-                            const state = props.state || '';
-                            
-                            const fullAddress = [street, city, state].filter(Boolean).join(', ');
-                            
-                            const item = document.createElement('div');
-                            item.className = 'autocomplete-item';
-                            item.innerHTML = `<strong>${name}</strong><span>${fullAddress}</span>`;
-                            
-                            item.addEventListener('click', () => {
-                                gymInput.value = name;
-                                if (city) cityInput.value = city;
-                                if (street) addressInput.value = street;
-                                resultsContainer.style.display = 'none';
-                            });
-                            
-                            resultsContainer.appendChild(item);
-                        });
-                        
-                        resultsContainer.style.display = 'block';
-                    });
-            }, 300);
+      const visibleGyms = gyms
+        .filter(gym => {
+          const haystack = `${gym.name} ${gym.city} ${gym.address}`.toLowerCase();
+          return haystack.includes(query) && Number(gym.rating) >= minimumRating;
+        })
+        .sort((a, b) => {
+          if (sort === "reliable") return getReviewScore(b.id) - getReviewScore(a.id);
+          if (sort === "rating") return Number(b.rating) - Number(a.rating);
+          return new Date(b.createdAt) - new Date(a.createdAt);
         });
 
-        // Close search results if clicking away
-        document.addEventListener('click', function(e) {
-            if (!e.target.closest('.autocomplete-container')) {
-                resultsContainer.style.display = 'none';
-            }
+      elements.resultCount.textContent = `${visibleGyms.length} ${visibleGyms.length === 1 ? "review" : "reviews"} from local families`;
+      elements.emptyState.classList.toggle("hidden", visibleGyms.length > 0);
+      elements.gymsGrid.innerHTML = visibleGyms.map(renderGymCard).join("");
+    }
+
+    function renderGymCard(gym) {
+      const score = getReviewScore(gym.id);
+      const userVote = currentUserId ? Number(votes[gym.id]?.[currentUserId] || 0) : 0;
+      const mapUrl = getMapUrl(gym);
+      const badge = authorHasBadge(gym.authorId)
+        ? '<span class="rounded-full bg-amber-100 px-2 py-1 text-[10px] font-black uppercase tracking-wide text-amber-800">Top Contributor 🏆</span>'
+        : "";
+      const map = mapUrl
+        ? `<iframe title="Map for ${escapeHtml(gym.name)}" src="${escapeHtml(mapUrl)}" class="h-44 w-full border-0" loading="lazy" referrerpolicy="no-referrer-when-downgrade" allowfullscreen></iframe>`
+        : `<a href="${escapeHtml(getGoogleReviewsUrl(gym))}" target="_blank" rel="noopener noreferrer" class="grid h-44 place-items-center bg-gradient-to-br from-teal/10 to-sky-100 p-6 text-center transition hover:from-teal/15 hover:to-sky-200">
+             <span><span class="block text-3xl" aria-hidden="true">📍</span><span class="mt-2 block text-sm font-black text-teal">Open location in Google Maps</span></span>
+           </a>`;
+
+      return `
+        <article class="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-card">
+          ${map}
+          <div class="p-5">
+            <div class="flex items-start justify-between gap-3">
+              <div class="min-w-0">
+                <h3 class="truncate text-xl font-black tracking-tight">${escapeHtml(gym.name)}</h3>
+                <p class="mt-1 text-sm text-slate-500">${escapeHtml(gym.address)}, ${escapeHtml(gym.city)}</p>
+              </div>
+              <span class="shrink-0 rounded-full bg-teal/10 px-2.5 py-1 text-xs font-black text-teal">${escapeHtml(gym.cost)}</span>
+            </div>
+
+            <div class="mt-4 flex items-center gap-2">
+              <span class="text-sm tracking-wider text-amber-500" aria-label="${Number(gym.rating)} out of 5 safety stars">${"★".repeat(Number(gym.rating))}${"☆".repeat(5 - Number(gym.rating))}</span>
+              <span class="text-xs font-bold text-slate-400">Safety & supervision</span>
+            </div>
+
+            <blockquote class="mt-4 border-l-4 border-coral/60 pl-4 text-sm leading-6 text-slate-700">“${escapeHtml(gym.review)}”</blockquote>
+
+            <div class="mt-5 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-4">
+              <span class="text-xs text-slate-500">By <strong class="text-slate-700">${escapeHtml(gym.authorEmail)}</strong></span>
+              ${badge}
+              <span class="ml-auto text-xs text-slate-400">${escapeHtml(formatDate(gym.createdAt))}</span>
+            </div>
+
+            <div class="mt-4 flex items-center gap-2 rounded-2xl bg-slate-50 p-2">
+              <span class="pl-2 text-xs font-bold text-slate-500">Was this reliable?</span>
+              <div class="ml-auto flex items-center gap-1">
+                <button type="button" data-vote="1" data-gym-id="${escapeHtml(gym.id)}" class="rounded-xl px-3 py-2 text-sm font-bold transition ${userVote === 1 ? "bg-teal text-white" : "bg-white text-slate-600 hover:bg-teal/10"}" aria-label="Thumbs up this review" aria-pressed="${userVote === 1}">👍</button>
+                <span class="min-w-9 text-center text-sm font-black ${score > 0 ? "text-teal" : score < 0 ? "text-rose-600" : "text-slate-500"}" title="Net reliability score">${score > 0 ? "+" : ""}${score}</span>
+                <button type="button" data-vote="-1" data-gym-id="${escapeHtml(gym.id)}" class="rounded-xl px-3 py-2 text-sm font-bold transition ${userVote === -1 ? "bg-rose-600 text-white" : "bg-white text-slate-600 hover:bg-rose-50"}" aria-label="Thumbs down this review" aria-pressed="${userVote === -1}">👎</button>
+              </div>
+            </div>
+
+            <div class="mt-4 grid grid-cols-2 gap-2">
+              <a href="${escapeHtml(getGoogleReviewsUrl(gym))}" target="_blank" rel="noopener noreferrer" class="rounded-xl border border-slate-200 px-3 py-2.5 text-center text-xs font-black text-slate-700 transition hover:border-teal hover:text-teal">Google Maps & Reviews ↗</a>
+              <a href="${escapeHtml(getYelpUrl(gym))}" target="_blank" rel="noopener noreferrer" class="rounded-xl border border-slate-200 px-3 py-2.5 text-center text-xs font-black text-slate-700 transition hover:border-coral hover:text-coral">Search on Yelp ↗</a>
+            </div>
+          </div>
+        </article>
+      `;
+    }
+
+    function handleVote(gymId, requestedVote) {
+      requireAuth(() => {
+        const gym = gyms.find(item => item.id === gymId);
+        if (gym?.authorId === currentUserId) {
+          showToast("You cannot rate your own vibe check.");
+          return;
+        }
+        if (!votes[gymId]) votes[gymId] = {};
+        const existingVote = Number(votes[gymId][currentUserId] || 0);
+        if (existingVote === requestedVote) {
+          delete votes[gymId][currentUserId];
+        } else {
+          votes[gymId][currentUserId] = requestedVote;
+        }
+        writeStorage(STORAGE_KEYS.votes, votes);
+        renderGyms();
+        updateUserUI();
+      });
+    }
+
+    function openGymForm() {
+      elements.gymForm.reset();
+      if (placesAutocomplete) placesAutocomplete.value = "";
+      showInlineError(elements.gymFormError, "");
+      elements.mapsNotice.classList.toggle("hidden", GOOGLE_MAPS_API_KEY !== "YOUR_KEY_HERE");
+      showModal(elements.gymModal);
+      setTimeout(() => document.getElementById("gymName").focus(), 50);
+    }
+
+    function getAddressComponent(place, types) {
+      const components = place.addressComponents || place.address_components || [];
+      const component = components.find(item => types.some(type => item.types.includes(type)));
+      return component?.longText || component?.long_name || "";
+    }
+
+    async function initializePlacesAutocomplete() {
+      if (!window.google?.maps || placesAutocomplete) return;
+
+      const { PlaceAutocompleteElement } = await google.maps.importLibrary("places");
+      const fallbackInput = document.getElementById("gymName");
+      const host = document.getElementById("placesAutocompleteHost");
+      placesAutocomplete = new PlaceAutocompleteElement({
+        includedPrimaryTypes: ["establishment"],
+        includedRegionCodes: ["us"],
+        locationBias: {
+          center: { lat: 33.7879, lng: -117.8531 },
+          radius: 50000
+        }
+      });
+      placesAutocomplete.placeholder = "Start typing a facility name...";
+      placesAutocomplete.setAttribute("aria-label", "Gym Name");
+      host.appendChild(placesAutocomplete);
+      host.classList.remove("hidden");
+      fallbackInput.classList.add("hidden");
+      fallbackInput.required = false;
+
+      placesAutocomplete.addEventListener("gmp-select", async ({ placePrediction }) => {
+        const place = placePrediction.toPlace();
+        await place.fetchFields({
+          fields: ["id", "displayName", "formattedAddress", "addressComponents", "location"]
         });
 
-        // Initialize display
-        window.onload = renderGyms;
-    </script>
+        const streetNumber = getAddressComponent(place, ["street_number"]);
+        const route = getAddressComponent(place, ["route"]);
+        const city = getAddressComponent(place, ["locality", "postal_town", "administrative_area_level_3"]);
+        const street = [streetNumber, route].filter(Boolean).join(" ");
+        const fallbackAddress = place.formattedAddress?.split(",")[0] || "";
+
+        fallbackInput.value = place.displayName || "";
+        document.getElementById("gymAddress").value = street || fallbackAddress;
+        document.getElementById("gymCity").value = city;
+        document.getElementById("gymPlaceId").value = place.id || "";
+        document.getElementById("gymLatitude").value = place.location?.lat() ?? "";
+        document.getElementById("gymLongitude").value = place.location?.lng() ?? "";
+      });
+    }
+
+    function loadGoogleMaps() {
+      if (GOOGLE_MAPS_API_KEY === "YOUR_KEY_HERE") return;
+      window.initializePlacesAutocomplete = initializePlacesAutocomplete;
+      const script = document.createElement("script");
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(GOOGLE_MAPS_API_KEY)}&loading=async&libraries=places&v=weekly&callback=initializePlacesAutocomplete`;
+      script.async = true;
+      script.defer = true;
+      script.onerror = () => {
+        elements.mapsNotice.classList.remove("hidden");
+        elements.mapsNotice.textContent = "Google Maps could not load. Confirm the API key, referrer restrictions, billing, and enabled APIs.";
+      };
+      document.head.appendChild(script);
+    }
+
+    function handleGymSubmit(event) {
+      event.preventDefault();
+      const user = getCurrentUser();
+      if (!user) {
+        closeModal(elements.gymModal);
+        requireAuth(openGymForm);
+        return;
+      }
+
+      if (GOOGLE_MAPS_API_KEY !== "YOUR_KEY_HERE" && !document.getElementById("gymPlaceId").value) {
+        showInlineError(elements.gymFormError, "Choose a gym from the Google Places suggestions so its location can be verified.");
+        return;
+      }
+
+      const review = document.getElementById("gymReview").value.trim();
+      if (review.length < 20) {
+        showInlineError(elements.gymFormError, "Please share at least 20 characters of useful firsthand detail.");
+        return;
+      }
+
+      const gym = {
+        id: crypto.randomUUID(),
+        name: document.getElementById("gymName").value.trim(),
+        city: document.getElementById("gymCity").value.trim(),
+        address: document.getElementById("gymAddress").value.trim(),
+        cost: document.getElementById("gymCost").value.trim(),
+        rating: Number(document.getElementById("gymRating").value),
+        review,
+        placeId: document.getElementById("gymPlaceId").value,
+        latitude: Number(document.getElementById("gymLatitude").value) || null,
+        longitude: Number(document.getElementById("gymLongitude").value) || null,
+        authorId: user.id,
+        authorEmail: user.email,
+        createdAt: new Date().toISOString()
+      };
+
+      gyms.unshift(gym);
+      if (!writeStorage(STORAGE_KEYS.gyms, gyms)) {
+        gyms.shift();
+        return;
+      }
+
+      closeModal(elements.gymModal);
+      renderGyms();
+      updateUserUI();
+      showToast("Your gym vibe check is live.");
+    }
+
+    elements.authForm.addEventListener("submit", handleAuthSubmit);
+    elements.authModeSwitch.addEventListener("click", () => setAuthMode(authMode === "login" ? "signup" : "login"));
+    elements.authButton.addEventListener("click", () => getCurrentUser() ? logOut() : openAuthModal("login"));
+    elements.addGymButton.addEventListener("click", () => requireAuth(openGymForm));
+    elements.gymForm.addEventListener("submit", handleGymSubmit);
+    elements.searchInput.addEventListener("input", renderGyms);
+    elements.ratingFilter.addEventListener("change", renderGyms);
+    elements.sortFilter.addEventListener("change", renderGyms);
+
+    document.addEventListener("click", event => {
+      const closeButton = event.target.closest("[data-close-modal]");
+      if (closeButton) closeModal(document.getElementById(closeButton.dataset.closeModal));
+
+      const voteButton = event.target.closest("[data-vote]");
+      if (voteButton) handleVote(voteButton.dataset.gymId, Number(voteButton.dataset.vote));
+    });
+
+    document.addEventListener("keydown", event => {
+      if (event.key !== "Escape") return;
+      if (!elements.gymModal.classList.contains("hidden")) closeModal(elements.gymModal);
+      else if (!elements.authModal.classList.contains("hidden")) closeModal(elements.authModal);
+    });
+
+    [elements.authModal, elements.gymModal].forEach(modal => {
+      modal.addEventListener("mousedown", event => {
+        if (event.target === modal) closeModal(modal);
+      });
+    });
+
+    if (currentUserId && !users[currentUserId]) {
+      currentUserId = "";
+      sessionStorage.removeItem(STORAGE_KEYS.session);
+    }
+
+    updateUserUI();
+    renderGyms();
+    loadGoogleMaps();
+  </script>
 </body>
 </html>
