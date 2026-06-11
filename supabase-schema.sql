@@ -39,6 +39,12 @@ create policy "Signed-in users create their reviews"
 on public.reviews for insert to authenticated
 with check ((select auth.uid()) = author_id);
 
+drop policy if exists "Authors update their reviews" on public.reviews;
+create policy "Authors update their reviews"
+on public.reviews for update to authenticated
+using ((select auth.uid()) = author_id)
+with check ((select auth.uid()) = author_id);
+
 drop policy if exists "Authors and admin delete reviews" on public.reviews;
 create policy "Authors and admin delete reviews"
 on public.reviews for delete to authenticated
@@ -82,5 +88,5 @@ using ((select auth.uid()) = user_id);
 
 grant usage on schema public to anon, authenticated;
 grant select on public.reviews, public.votes to anon;
-grant select, insert, delete on public.reviews to authenticated;
+grant select, insert, update, delete on public.reviews to authenticated;
 grant select, insert, update, delete on public.votes to authenticated;
