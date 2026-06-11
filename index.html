@@ -1191,17 +1191,32 @@
       elements.gymSubmit.disabled = true;
       elements.gymSubmit.textContent = isEditing ? "Saving..." : "Publishing...";
       try {
-        const query = isEditing
-          ? supabaseClient.from("reviews").update(gym).eq("id", editingReviewId).eq("author_id", user.id)
-          : supabaseClient.from("reviews").insert({
+        const result = isEditing
+          ? await supabaseClient
+              .from("reviews")
+              .update(gym)
+              .eq("id", editingReviewId)
+              .eq("author_id", user.id)
+              .select()
+              .maybeSingle()
+          : await supabaseClient.from("reviews").insert({
               ...gym,
               author_id: user.id,
               author_mask: maskEmail(user.email)
             });
-        const { error } = await query;
+        const { data, error } = result;
         if (error) throw error;
+        if (isEditing && !data) {
+          throw new Error("No review was updated. Run the latest supabase-schema.sql in the Supabase SQL Editor, then try again.");
+        }
         closeModal(elements.gymModal);
-        await loadSharedData();
+        if (isEditing) {
+          gyms = gyms.map(item => item.id === editingReviewId ? mapReview(data) : item);
+          renderGyms();
+          updateUserUI();
+        } else {
+          await loadSharedData();
+        }
         showToast(isEditing ? "Your review was updated." : "Your gym vibe check is live.");
       } catch (error) {
         showInlineError(elements.gymFormError, error.message || (isEditing
