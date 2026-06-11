@@ -22,3 +22,9 @@ Supabase secret key or service-role key in this repository.
 
 When an existing local user signs into the Supabase-backed version, reviews still
 stored in that browser are imported once into the shared database.
+
+## Enable review editing on an existing database
+
+If the database was created before author editing was added, open the Supabase
+SQL Editor and run `enable-review-editing.sql` once. This adds the author-only
+update policy and the required table privilege without recreating any data.
